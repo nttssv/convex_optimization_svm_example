@@ -46,7 +46,7 @@
 % ---- Title metadata ----
 \title{Optimization-Based Clinical Decision Support for Curable Hypertension}
 \subtitle{SVMs: Hard-Margin Feasibility, Soft Margins, and Kernel Validation}
-\author{Nguyen Thanh Tung - 1011011 \and Duong Van Khoa}
+\author{Nguyen Thanh Tung - 1011011 \and Duong Van Khoa - 1010689}
 \institute{Optimization for Data Science Project \\ Singapore University of Technology and Design}
 \date{\today}
 
@@ -516,22 +516,22 @@
 \begin{frame}{Step 4 --- the kernel boundary redrawn in PC1/PC2}
   \begin{columns}[T]
     \begin{column}{0.40\textwidth}
+      \small
       The same projection as Step 3c, now with the \textbf{RBF-kernel} decision surface.
-      \vspace{0.5em}
-      \begin{itemize}
-        \item The boundary is \alert{curved}, not straight --- the kernel's extra flexibility at work.
-        \item It bends \emph{around} individual points, yet the two hulls still overlap.
-        \item Curvature relabels a few borderline points but does not carve out a clean separation.
+      \begin{itemize}\setlength\itemsep{2pt}
+        \item The boundary is \alert{curved}, not straight.
+        \item It bends \emph{around} points, yet the two hulls still overlap.
+        \item Curvature relabels a few borderline points but does not separate the classes.
       \end{itemize}
-      \vspace{0.4em}
       {\footnotesize Illustrative 2-D fit (moderate $\gamma$); the tuned model chose a much smoother $\gamma$.}
     \end{column}
     \begin{column}{0.60\textwidth}
       \centering
-      \includegraphics[width=\textwidth]{output/figures/fig_step4_rbf_pc_boundary.pdf}\\
+      \includegraphics[width=0.94\textwidth,height=0.62\textheight,keepaspectratio]{output/figures/fig_step4_rbf_pc_boundary.pdf}\\
       {\footnotesize Compare with the straight line of Step 3c: more shape, same overlap.}
     \end{column}
   \end{columns}
+  \vspace{-0.3em}
   \take{The kernel can bend the boundary --- but bending does not make overlapping classes separable.}
 \end{frame}
 
