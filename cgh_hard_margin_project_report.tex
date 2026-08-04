@@ -59,6 +59,8 @@ Singapore University of Technology and Design}
     {\large Optimization for Data Science Project\par}
     \vspace{0.2cm}
     {\large Singapore University of Technology and Design\par}
+    \vspace{1.2cm}
+    {\normalsize Code and data: \url{https://github.com/nttssv/convex_optimization_svm_example}\par}
     \vfill
     {\large \today\par}
 \end{titlepage}
@@ -250,7 +252,7 @@ For fixed $\alpha$, the Hessian with respect to $(w,b)$ is again
     \nabla^2_{(w,b)}\mathcal{L}
     =\begin{bmatrix}I_p&0\\0&0\end{bmatrix}.
 \end{equation}
-When the primal is feasible, its Karush--Kuhn--Tucker (KKT) conditions are necessary and sufficient for global optimality \cite{boyd2004}:
+When the primal is feasible, its Karush--Kuhn--Tucker (KKT) conditions are necessary and sufficient for global optimality \cite{boyd2004,lec-firstorder}:
 \begin{equation}
 \begin{aligned}
     w-\sum_{i=1}^{m}\alpha_i t_i x_i &=0,
@@ -261,7 +263,7 @@ When the primal is feasible, its Karush--Kuhn--Tucker (KKT) conditions are neces
     & i&=1,\ldots,m.
 \end{aligned}
 \end{equation}
-The final equality is complementary slackness. Observations with $\alpha_i>0$ lie on a supporting margin and are support vectors. Stationarity alone is not sufficient: primal feasibility, dual feasibility, and complementary slackness must also hold.
+The final equality is complementary slackness. Read in both directions it states that an inactive constraint forces a zero multiplier ($t_i(w^\top x_i+b)-1>0\Rightarrow\alpha_i=0$), while a positive multiplier forces an active constraint ($\alpha_i>0\Rightarrow t_i(w^\top x_i+b)=1$); observations with $\alpha_i>0$ therefore lie on a supporting margin and are the support vectors. Complementary slackness is also exactly the term that makes $\sum_i\alpha_i[t_i(w^\top x_i+b)-1]$ vanish in the Lagrangian at optimality, which is what collapses the duality gap to $p^\star=d^\star$ \cite{lec-duality}. Stationarity alone is not sufficient: primal feasibility, dual feasibility, and complementary slackness must also hold.
 
 The KKT conditions are sufficient here because the objective is convex and
 the margin constraints are affine. They are also necessary whenever the
@@ -818,6 +820,124 @@ support-vector multipliers, slacks, and primal--dual checks are written under
 section and both panels of Figure~\ref{fig:soft-grid-roc} are generated from
 those Python outputs.
 
+The penalty $C$ is selected by the grid search of Figure~\ref{fig:c-grid}:
+validation AUROC is highest at the strongly regularised end and the
+training--validation gap is smallest there, so $C=0.01$ is preferred.
+Figure~\ref{fig:soft-pareto} recasts the same grid as a Pareto trade-off
+between validation performance and overfitting, on which $C=0.01$ is the single
+non-dominated point. Figure~\ref{fig:soft-boundary} shows the resulting
+soft-margin boundary in the first two principal components: the separating line
+passes straight through the region where the two subtypes overlap, accepting
+the misclassifications it cannot avoid and charging for them through the slack
+variables.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{output/figures/fig_step3_c_grid.pdf}
+    \caption{Grid search for the penalty $C$. Mean five-fold validation AUROC
+    (with training AUROC for reference) across the $C$ grid; the selected value
+    $C=0.01$ is circled. Stronger regularisation generalises best on this
+    overlapping data.}
+    \label{fig:c-grid}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{output/figures/fig_step3_pareto.pdf}
+    \caption{The same grid as a Pareto trade-off between mean validation AUROC
+    (higher is better) and the train--validation AUROC gap (lower is better).
+    Points are coloured by $\log_{10}C$; $C=0.01$ (star) is the single
+    Pareto-optimal setting.}
+    \label{fig:soft-pareto}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.72\textwidth]{output/figures/fig_step3c_pc_boundary.pdf}
+    \caption{Fitted soft-margin decision boundary in the first two principal
+    components, with the $\pm1$ margins and the circled support vectors. The
+    boundary is an illustrative two-dimensional fit; the reported model is
+    trained on all ten features.}
+    \label{fig:soft-boundary}
+\end{figure}
+
+\subsection{Solving the Primal Directly: the Stochastic Gradient Method}
+\label{sec:sgm}
+
+The dual quadratic program above is solved in this report by \texttt{scikit-learn}'s
+SMO routine. The soft-margin \emph{primal} can instead be minimized directly,
+and because it is a regularized finite sum over the $m$ training points it is a
+natural target for the stochastic gradient method (SG). Writing the homogeneous
+primal in the finite-sum form
+\begin{equation}
+    \min_{w\in\mathbb{R}^{p}}\ \frac{1}{m}\sum_{i=1}^{m}\max\!\bigl(0,\,1-t_i\,w^\top x_i\bigr)
+    +\frac{\lambda}{2}\lVert w\rVert^2,
+\end{equation}
+each step samples one index $k$ uniformly at random and takes a subgradient step.
+The hinge term is non-differentiable at its kink, so the lecture uses its
+subgradient: $0\in\partial\ell$ whenever $t_k\,w^\top x_k\ge 1$, and
+$\partial\ell=-t_k x_k$ otherwise. Adding the subgradient of the
+$\tfrac{\lambda}{2}\lVert w\rVert^2$ regularizer and taking the Pegasos step size
+$\eta_k=1/(\lambda k)$ gives the update
+\begin{equation}
+    w_{k+1}=w_k-\eta_k\, g_k,\qquad
+    g_k=\begin{cases}
+        \lambda w_k, & t_k\,w_k^\top x_k\ge 1,\\[2pt]
+        \lambda w_k-t_k x_k, & t_k\,w_k^\top x_k<1.
+    \end{cases}
+\end{equation}
+The $\tfrac{\lambda}{2}\lVert w\rVert^2$ term makes the objective $\lambda$-strongly
+convex \cite{lec-strongconvex}, and the intercept is recovered by appending a
+constant feature to each $x_i$; this is the stochastic gradient method of the
+course lecture \cite{lec-sgm} applied to the regularised hinge objective.
+Figure~\ref{fig:sgm-convergence} shows the run on the standardized project
+data ($m=114$, $\lambda=0.01$). The reference optimum $P^\star=0.250$ is obtained
+from a primal hinge solver; the SG direction agrees with that solution to a cosine
+similarity of $0.99$ and reproduces its discrimination (AUROC $0.958$ versus
+$0.955$), confirming that the stochastic primal route reaches the same separating
+hyperplane as the dual solver.
+
+\begin{table}[htbp]
+\centering
+\caption{Steps for the stochastic gradient method to reach a given optimality gap
+$P(w_k)-P^\star$ on the project data, measured on the best-so-far iterate. One
+epoch is a full pass over the $m=114$ points.}
+\label{tab:sgm-steps}
+\small
+\begin{tabular}{lrr}
+\toprule
+Target optimality gap & Steps & Epochs\\
+\midrule
+Within $5\%$ of $P^\star$ & $1{,}653$ & $\approx 14$\\
+Within $1\%$ of $P^\star$ & $7{,}591$ & $\approx 67$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{output/figures/sgm_primal_convergence.pdf}
+    \caption{Stochastic gradient method on the soft-margin primal. Left: the raw
+    iterate $P(w_k)$ (thin) fluctuates around the optimum $P^\star$ because each
+    step uses a single random point, while the running (Polyak) average
+    $P(\bar w_k)$ converges smoothly. Right: the optimality gap
+    $P(w_k)-P^\star$ on log--log axes, with the best-so-far gap crossing $5\%$
+    of $P^\star$ at about step $1{,}650$ ($\approx14$ epochs) and $1\%$ at about
+    step $7{,}600$ ($\approx67$ epochs).}
+    \label{fig:sgm-convergence}
+\end{figure}
+
+The convergence behaviour is worth reading carefully. For a strongly convex
+objective the stochastic gradient analysis gives a clean linear rate only in the
+interpolation regime, where a single $w$ drives every per-point loss to zero so
+that the gradient-noise floor $B$ vanishes. The project data are \emph{not}
+linearly separable---this is precisely what the infeasibility certificate of the
+next section establishes---so the hinge loss cannot be driven to zero, the noise
+floor is strictly positive ($B>0$), and the iterate settles into a persistent band
+around the optimum rather than converging geometrically. The averaged iterate is
+what supplies a stable solution, and the observed sublinear, noisy decay in
+Figure~\ref{fig:sgm-convergence} is the expected signature of this $B>0$ regime.
+
 \section{Detailed Hard-Margin Numerical Certificate}
 
 \subsection{Full-Data Infeasibility Certificate}
@@ -924,6 +1044,39 @@ strictly separated by a hyperplane.
     \includegraphics[width=0.98\textwidth]{output/figures/full_data_infeasibility_certificate.pdf}
     \caption{Full-data infeasibility certificate. Panel (a) shows the identical ten-dimensional point obtained as a convex combination of UPA observations and as a convex combination of BPA observations; the plot compares coordinates directly and is not a two-dimensional projection. Panel (b) shows the twelve nonzero Farkas weights.}
     \label{fig:full-certificate}
+\end{figure}
+
+Two complementary illustrations make the certificate intuitive.
+Figure~\ref{fig:farkas-schematic} contrasts the two systems of Farkas' lemma:
+either a separating hyperplane exists (System~A), or a nonnegative combination
+of the constraints proves a contradiction $0\ge1$ (System~B), never both.
+Figure~\ref{fig:hull-overlap} shows the same fact geometrically on the project
+data projected to its first two principal components: the convex hulls of the
+two subtypes overlap, and overlapping hulls cannot be separated by any
+hyperplane. The theory-of-the-alternative structure behind this argument
+follows the treatment of duality and first-order optimality in the course
+lectures \cite{lec-duality,lec-firstorder}.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{output/figures/farkas_lemma_schematic.pdf}
+    \caption{Farkas' lemma as a theorem of the alternative. System~A (left): the
+    classes are separable, so a hyperplane exists. System~B (right): the classes
+    overlap, so a nonnegative weighting of the points certifies infeasibility
+    ($0\ge1$). Exactly one system is solvable; for the project data it is
+    System~B.}
+    \label{fig:farkas-schematic}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.72\textwidth]{output/figures/convex_hull_overlap_2d.pdf}
+    \caption{Convex hulls of the UPA and BPA subtypes in the first two principal
+    components of the standardised data. The hulls overlap, so no separating
+    hyperplane exists---the geometric statement of the infeasibility certificate.
+    The projection is for visualisation; the certificate itself is computed in
+    the full ten-dimensional space.}
+    \label{fig:hull-overlap}
 \end{figure}
 
 Consequently, for the current preprocessed project data,
@@ -1235,6 +1388,24 @@ its held-out ranking is close to chance. Nested validation, the
 train--validation gap, and the position of the selected point on the grid must
 be interpreted together.
 
+Figure~\ref{fig:rbf-boundary} shows the RBF decision surface in the same
+principal-component projection as the linear boundary of
+Figure~\ref{fig:soft-boundary}. The kernel lets the boundary curve, but the two
+convex hulls still overlap: the added flexibility bends the surface around
+individual points without producing a clean separation, which is why it does
+not improve held-out discrimination.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.72\textwidth]{output/figures/fig_step4_rbf_pc_boundary.pdf}
+    \caption{RBF-kernel decision boundary in the first two principal components,
+    to be compared with the straight linear boundary of
+    Figure~\ref{fig:soft-boundary}. The boundary curves but the subtype hulls
+    still overlap. Illustrative two-dimensional fit at a moderate $\gamma$; the
+    tuned model selected a much smoother $\gamma$.}
+    \label{fig:rbf-boundary}
+\end{figure}
+
 \subsection{Pareto Frontier of Validation Performance and Overfitting}
 
 A Pareto analysis makes this trade-off explicit. The two objectives are to
@@ -1504,6 +1675,31 @@ Machine learning artificial intelligence to predict curable forms of hypertensio
 A clinical decision support system for primary aldosteronism.
 CGH midterm research report, 13 March 2026.
 
+\bibitem{lec-convex}
+Optimization for Data Science (2026).
+\textit{Convex Optimization Models}. Week~8, Class~1 lecture notes.
+
+\bibitem{lec-statlearn}
+Optimization for Data Science (2026).
+\textit{Statistical Learning Models}. Week~9, Class~1 lecture notes.
+
+\bibitem{lec-duality}
+Optimization for Data Science (2026).
+\textit{Introduction to Duality}. Week~9, Class~2 lecture notes.
+
+\bibitem{lec-firstorder}
+Optimization for Data Science (2026).
+\textit{First-Order Optimality Conditions and Sensitivity Analysis}.
+Week~10, Class~1 lecture notes.
+
+\bibitem{lec-strongconvex}
+Optimization for Data Science (2026).
+\textit{Strong Convexity and Descent Methods}. Week~10, Class~2 lecture notes.
+
+\bibitem{lec-sgm}
+Optimization for Data Science (2026).
+\textit{The Stochastic Gradient Method}. Lecture notes.
+
 \end{thebibliography}
 
 \appendix
@@ -1573,28 +1769,39 @@ in mean outer-fold AUROC is not statistically significant (paired $t=1.63$,
 $p=0.18$ across the five folds). Preferring the simpler linear model is the
 supported conclusion.
 
-\section{Linear Hard-Margin Feasibility and Training Code}
+\section{Source Code}
+\label{app:code}
 
-The complete implementation below applies fold-wise preprocessing, tests the hard-margin constraints by linear programming, solves the constrained primal only when feasible, and creates an ROC curve only when all folds return valid models.
+All code, the synthetic dataset, and the generated figures and tables are
+available in the project repository:
+\begin{center}
+\url{https://github.com/nttssv/convex_optimization_svm_example}
+\end{center}
 
-\lstinputlisting[language=Python]{scripts/linear_hard_margin_svm.py}
+The repository is organised as follows. Each script is reached by appending
+its path to
+\path{https://github.com/nttssv/convex_optimization_svm_example/blob/main/}.
 
-\section{Linear Soft-Margin Grid Search and Audit Code}
+\begin{itemize}
+    \item \path{scripts/linear_hard_margin_svm.py} --- fold-wise
+    preprocessing, the hard-margin feasibility test by linear programming, and
+    the constrained primal solve used in Section~\ref{sec:hard-margin}.
+    \item \path{scripts/linear_soft_margin_svm.py} --- leakage-safe nested
+    cross-validation, selection of $C$ by AUROC, the final soft-margin fit with
+    its primal--dual audit, and the tables and figures of
+    Section~\ref{sec:soft-margin}.
+    \item \path{scripts/kernel_rbf_svm.py} --- joint $C,\gamma$ tuning inside
+    nested cross-validation, the train--validation gap diagnostic, and the
+    RBF-versus-linear comparison of Section~\ref{sec:kernel-rbf}.
+    \item \path{scripts/build_full_data_infeasibility_certificate.py} --- the
+    Farkas infeasibility certificate of Section~\ref{sec:full-certificate}.
+    \item \path{data/cgh_pa_dataset.csv} --- the synthetic 114-patient cohort;
+    \path{output/} --- the regenerated figures, CSV audits, and \LaTeX{} table
+    fragments.
+\end{itemize}
 
-The implementation below performs leakage-safe nested cross-validation,
-selects $C$ by AUROC, fits the final linear soft-margin model, checks its
-primal and dual objectives, and generates the CSV tables and figures used in
-Section~\ref{sec:soft-margin}.
-
-\lstinputlisting[language=Python]{scripts/linear_soft_margin_svm.py}
-
-\section{RBF Kernel Grid Search and Overfitting Audit Code}
-
-The implementation below jointly tunes $C$ and $\gamma$ inside nested
-cross-validation, evaluates train--validation gaps, compares RBF and linear
-outer-fold performance, and generates the Chapter~\ref{sec:kernel-rbf}
-artifacts.
-
-\lstinputlisting[language=Python]{scripts/kernel_rbf_svm.py}
+Running the three model scripts from the repository root, with
+\path{scripts/} on \texttt{PYTHONPATH}, reproduces every table and figure in
+this report.
 
 \end{document}

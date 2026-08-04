@@ -7,6 +7,12 @@
 \setbeamertemplate{navigation symbols}{}
 \setbeamertemplate{itemize items}[circle]
 
+% slide number in the bottom-right of every frame
+\setbeamertemplate{footline}{%
+  \hfill\usebeamerfont{footline}\color{softgray}\small
+  \insertframenumber\,/\,\inserttotalframenumber\hspace{0.4cm}\vspace{0.15cm}%
+}
+
 \definecolor{UPAblue}{HTML}{1F77B4}
 \definecolor{BPAorange}{HTML}{E8823A}
 \definecolor{darkink}{HTML}{1A2B3C}
@@ -73,6 +79,28 @@
   \end{itemize}
 \end{frame}
 
+% ---------- Steps at a glance ----------
+\begin{frame}{The five steps --- what each one asks and answers}
+  \small
+  \begin{itemize}\setlength\itemsep{5pt}
+    \item[\textcolor{UPAblue}{\textbf{1}}] \textbf{Hard margin --- can a perfect line exist?}
+      Demand a straight boundary that classifies \emph{every} patient correctly with a margin.
+      This is a convex feasibility problem: either such a line exists, or it provably does not.
+    \item[\textcolor{BPAorange}{\textbf{2}}] \textbf{Prove it is impossible.}
+      Three independent checks agree the classes are not linearly separable:
+      \emph{(2a)} the LP solver returns ``infeasible''; \emph{(2b)} a $12$-patient Farkas
+      certificate turns that into a proof ($0\ge 1$); \emph{(2c)} the two convex hulls overlap.
+    \item[\textcolor{UPAblue}{\textbf{3}}] \textbf{Relax to the soft margin.}
+      Allow mistakes but charge for them through slack variables and a penalty $C$.
+      Always solvable; \emph{(3a)} tune $C$ by grid search, \emph{(3b)} read it as a Pareto
+      trade-off, \emph{(3c)} see the fitted line, \emph{(3d)} solve the primal directly by SGD.
+    \item[\textcolor{BPAorange}{\textbf{4}}] \textbf{Compare against a curved boundary.}
+      Swap the inner product for an RBF kernel so the boundary can bend, then check
+      whether the extra flexibility actually helps or merely overfits.
+  \end{itemize}
+  \take{Steps 1--2 establish \emph{what is impossible}; steps 3--4 find \emph{the best thing that is possible}.}
+\end{frame}
+
 % ---------- Problem ----------
 \begin{frame}{The clinical problem}
   \begin{columns}[T]
@@ -115,26 +143,26 @@
   \begin{columns}[T]
     \begin{column}{0.58\textwidth}
       \scriptsize
-      \setlength{\tabcolsep}{3.5pt}
-      \begin{tabular}{lccrr}
+      \setlength{\tabcolsep}{3pt}
+      \begin{tabular}{lccrrr}
         \toprule
-        Feature & UPA & BPA & Cohen's $d$ & Welch $t$ \\
+        Feature & UPA & BPA & Cohen's $d$ & Welch $t$ & $p$ \\
         \midrule
-        PAC (ng/dL)      & 34.9  & 18.4  & \textbf{1.17} & \textbf{6.20} \\
-        18-OHF (ng/dL)   & 1883  & 942   & \textbf{0.99} & \textbf{5.25} \\
-        Potassium (mmol/L) & 3.38 & 3.79 & \textbf{-0.95} & \textbf{-5.09} \\
-        PRA (ng/mL/h)    & 0.51  & 0.96  & \textbf{-0.80} & \textbf{-4.32} \\
-        Diastolic BP (mmHg) & 92.3 & 84.1 & \textbf{0.75} & \textbf{4.03} \\
-        Tumor size (mm)  & 15.4  & 11.4  & \textbf{0.74} & \textbf{3.98} \\
-        18-oxoF (ng/dL)  & 148.1 & 71.8  & \textbf{0.66} & \textbf{3.46} \\
+        PAC (ng/dL)      & 34.9  & 18.4  & \textbf{1.17} & \textbf{6.20} & \textbf{$<$0.001} \\
+        18-OHF (ng/dL)   & 1883  & 942   & \textbf{0.99} & \textbf{5.25} & \textbf{$<$0.001} \\
+        Potassium (mmol/L) & 3.38 & 3.79 & \textbf{-0.95} & \textbf{-5.09} & \textbf{$<$0.001} \\
+        PRA (ng/mL/h)    & 0.51  & 0.96  & \textbf{-0.80} & \textbf{-4.32} & \textbf{$<$0.001} \\
+        Diastolic BP (mmHg) & 92.3 & 84.1 & \textbf{0.75} & \textbf{4.03} & \textbf{$<$0.001} \\
+        Tumor size (mm)  & 15.4  & 11.4  & \textbf{0.74} & \textbf{3.98} & \textbf{$<$0.001} \\
+        18-oxoF (ng/dL)  & 148.1 & 71.8  & \textbf{0.66} & \textbf{3.46} & \textbf{$<$0.001} \\
         \midrule
-        DDD (drugs)      & 2.48  & 2.14  & 0.36 & 1.94 \\
-        Systolic BP (mmHg) & 141.4 & 137.5 & 0.23 & 1.22 \\
-        Age (years)      & 48.6  & 50.1  & -0.15 & -0.80 \\
+        DDD (drugs)      & 2.48  & 2.14  & 0.36 & 1.94 & 0.055 \\
+        Systolic BP (mmHg) & 141.4 & 137.5 & 0.23 & 1.22 & 0.224 \\
+        Age (years)      & 48.6  & 50.1  & -0.15 & -0.80 & 0.425 \\
         \bottomrule
       \end{tabular}
       \\[0.4em]
-      {\tiny Bold: $|t|>2$, i.e.\ separates the subtypes (7 of 10).
+      {\tiny Bold: $p<0.05$ (Welch $t$-test), i.e.\ separates the subtypes (7 of 10).
       Sign: $+$ means higher in UPA.}
     \end{column}
     \begin{column}{0.40\textwidth}
@@ -377,6 +405,24 @@
     \end{column}
   \end{columns}
   \take{A separating line cannot avoid the overlap --- the soft margin accepts it and charges for it.}
+\end{frame}
+
+% ---------- SGM on the primal ----------
+\begin{frame}{Step 3d --- solving the primal directly with SGD}
+  \small
+  The soft-margin primal is a \textbf{finite sum} over the $m$ patients, so it can be
+  solved one random point at a time (no dual, no QP):
+  $w_{k+1}=w_k-\eta_k g_k$ with
+  $g_k=\lambda w_k$ if $t_k w_k^\top x_k\ge 1$, else $g_k=\lambda w_k-t_k x_k$
+  (step $\eta_k=1/(\lambda k)$; the hinge kink makes $g_k$ a \emph{subgradient}, as in
+  the lecture, plus the regularizer term). Reaches within $5\%$ of the optimum in $\approx14$ epochs, $1\%$
+  in $\approx67$, and matches the dual solver (cosine $0.99$, AUROC $0.958$ vs $0.955$).
+  \vspace{-0.2em}
+  \begin{center}
+    \includegraphics[width=0.96\textwidth,height=0.56\textheight,keepaspectratio]{output/figures/sgm_convergence_slide.pdf}
+  \end{center}
+  \vspace{-0.4em}
+  \take{SGD reaches the same hyperplane as the dual --- but the noisy floor is a tell: the data are not separable ($B>0$).}
 \end{frame}
 
 % ---------- RBF derivation ----------
