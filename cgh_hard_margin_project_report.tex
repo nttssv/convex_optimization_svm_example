@@ -17,7 +17,7 @@
 \hypersetup{
     hidelinks,
     pdftitle={Hard-Margin, Soft-Margin, and Kernel SVM for Primary Aldosteronism Subtype Classification},
-    pdfauthor={Nguyen Thanh Tung, Duong Van Khoa - 1010689}
+    pdfauthor={Nguyen Thanh Tung - 1011011, Duong Van Khoa - 1010689}
 }
 
 \setlength{\parindent}{0pt}
@@ -36,7 +36,7 @@
 
 \title{\textbf{Optimization-Based Clinical Decision Support for Curable Hypertension}\\
 \large SVM: Hard-Margin Feasibility, Soft Margins, and Kernel Validation}
-\author{Nguyen Thanh Tung\\
+\author{Nguyen Thanh Tung - 1011011\\
 Duong Van Khoa - 1010689\\
 Optimization for Data Science Project\\
 Singapore University of Technology and Design}
@@ -52,7 +52,7 @@ Singapore University of Technology and Design}
     \vspace{0.4cm}
     {\large SVM: Hard-Margin Feasibility, Soft Margins, and Kernel Validation\par}
     \vspace{1.8cm}
-    {\large Nguyen Thanh Tung\par}
+    {\large Nguyen Thanh Tung - 1011011\par}
     \vspace{0.2cm}
     {\large Duong Van Khoa - 1010689\par}
     \vspace{0.2cm}
@@ -170,7 +170,7 @@ strongest single predictor, leaves the two subtypes heavily overlapped.
 
 \subsection{Primal Optimization Problem}
 
-The linear decision score is $s_i=w^\top x_i+b$, where $w\in\mathbb{R}^p$ is the normal vector of the separating hyperplane and $b\in\mathbb{R}$ is the intercept. The hard-margin primal SVM is the convex quadratic program \cite{cortes1995}
+The linear decision score is $s_i=w^\top x_i+b$, where $w\in\mathbb{R}^p$ is the normal vector of the separating hyperplane and $b\in\mathbb{R}$ is the intercept. The hard-margin primal SVM is the convex quadratic program \cite{cortes1995,lec-statlearn,lec-convex}
 \begin{equation}
 \begin{aligned}
 \min_{w,b}\quad & \phi(w,b)=\frac{1}{2}\lVert w\rVert_2^2\\
@@ -178,7 +178,7 @@ The linear decision score is $s_i=w^\top x_i+b$, where $w\in\mathbb{R}^p$ is the
     \qquad i=1,\ldots,m.
 \end{aligned}
 \end{equation}
-The constraints require every training observation to be correctly classified with functional margin at least one. Minimizing $\lVert w\rVert_2^2/2$ maximizes the geometric margin $2/\lVert w\rVert_2$ between the two supporting hyperplanes.
+The constraints require every training observation to be correctly classified with functional margin at least one. Minimizing $\lVert w\rVert_2^2/2$ maximizes the geometric margin $2/\lVert w\rVert_2$ between the two supporting hyperplanes \cite{lec-statlearn}.
 
 In a hard-margin SVM there is no per-observation loss term to differentiate. Margin violations are forbidden by constraints rather than assigned a finite loss. Consequently, the quantity differentiated below is the \emph{primal objective}, together with the affine constraint functions.
 
@@ -213,7 +213,7 @@ For each margin constraint,
     \qquad
     \nabla^2 g_i(\theta)=0.
 \end{equation}
-Because $Q\succeq0$ and every $g_i$ is affine, the primal problem is convex. The objective is strictly convex in $w$ but not in the complete vector $(w,b)$ because the intercept is unpenalized. Thus the optimal $w$ is unique whenever a solution exists, whereas the intercept need not be unique. There is also no hinge boundary or nondifferentiable point in this constrained primal formulation.
+Because $Q\succeq0$ and every $g_i$ is affine, the primal problem is convex \cite{lec-convex}. The objective is strictly convex in $w$ but not in the complete vector $(w,b)$ because the intercept is unpenalized. Thus the optimal $w$ is unique whenever a solution exists, whereas the intercept need not be unique. There is also no hinge boundary or nondifferentiable point in this constrained primal formulation.
 
 Section~\ref{sec:worked-excel} evaluates $u_i^\top\theta$ row by row in a ten-observation spreadsheet illustration.
 
@@ -288,7 +288,8 @@ $1-t_i(w^\top x_i+b)$ are nonpositive. Hence
     \leq \frac12\lVert w\rVert_2^2.
 \end{equation}
 Thus each dual-feasible $\alpha$ supplies a \emph{lower bound} on every
-feasible primal objective value. This is the dual bound. The dual maximizes
+feasible primal objective value. This is the dual bound, the weak-duality
+inequality of \cite{lec-duality}. The dual maximizes
 $q(\alpha)$ because it seeks the largest, and therefore tightest, lower bound;
 this explains why the primal is a minimization problem while the dual is a
 maximization problem.
@@ -315,7 +316,7 @@ the next subsection.
 \label{sec:slater}
 
 Weak duality is automatic, but the dual is a faithful stand-in for the primal
-only when the gap closes. For a convex program
+only when the gap closes \cite{lec-duality}. For a convex program
 \begin{equation}
 \begin{aligned}
 \min_{x}\quad & f(x)\\
@@ -644,7 +645,7 @@ variables to the geometry of overlapping UPA and BPA observations.
 
 \subsection{Soft-Margin Primal Problem}
 
-The linear soft-margin primal problem is
+The linear soft-margin primal problem is \cite{cortes1995,lec-statlearn}
 \begin{equation}
 \begin{aligned}
 \min_{w,b,\xi}\quad
@@ -1262,7 +1263,7 @@ establishes the two properties that license the RBF kernel.
 A symmetric kernel $K$ is \emph{positive semi-definite} (PSD) if for every
 finite set $x_1,\ldots,x_m$ the Gram matrix $G_{ij}=K(x_i,x_j)$ satisfies
 $c^\top Gc\geq0$ for all $c\in\mathbb{R}^m$. Four standard closure rules are
-used \cite{boyd2004}: if $K_1,K_2$ are PSD then (K1) $\lambda_1K_1+\lambda_2K_2$
+used \cite{boyd2004,lec-statlearn}: if $K_1,K_2$ are PSD then (K1) $\lambda_1K_1+\lambda_2K_2$
 is PSD for $\lambda_1,\lambda_2\geq0$; (K2) the product $K_1K_2$ is PSD, by the
 Schur product theorem; (K3) $K(x,y)=f(x)f(y)$ is PSD for any real $f$; and
 (K4) a pointwise limit of PSD kernels is PSD.
