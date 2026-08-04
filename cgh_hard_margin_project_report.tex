@@ -17,7 +17,7 @@
 \hypersetup{
     hidelinks,
     pdftitle={Hard-Margin, Soft-Margin, and Kernel SVM for Primary Aldosteronism Subtype Classification},
-    pdfauthor={Nguyen Thanh Tung}
+    pdfauthor={Nguyen Thanh Tung, Duong Van Khoa - 1010689}
 }
 
 \setlength{\parindent}{0pt}
@@ -37,6 +37,7 @@
 \title{\textbf{Optimization-Based Clinical Decision Support for Curable Hypertension}\\
 \large SVM: Hard-Margin Feasibility, Soft Margins, and Kernel Validation}
 \author{Nguyen Thanh Tung\\
+Duong Van Khoa - 1010689\\
 Optimization for Data Science Project\\
 Singapore University of Technology and Design}
 \date{\today}
@@ -52,6 +53,8 @@ Singapore University of Technology and Design}
     {\large SVM: Hard-Margin Feasibility, Soft Margins, and Kernel Validation\par}
     \vspace{1.8cm}
     {\large Nguyen Thanh Tung\par}
+    \vspace{0.2cm}
+    {\large Duong Van Khoa - 1010689\par}
     \vspace{0.2cm}
     {\large Optimization for Data Science Project\par}
     \vspace{0.2cm}
@@ -90,7 +93,78 @@ Ten continuous predictors are used: plasma aldosterone concentration, plasma ren
 \end{equation}
 The four positively skewed hormone measurements are log-transformed. Within each cross-validation split, medians, means, and standard deviations are estimated from the training fold only; these training-fold quantities are then used for imputation and standardization of the held-out fold.
 
+\section{Descriptive Statistics of the Predictors}
+\label{sec:descriptive}
+
+Before any margin model is fitted, each predictor is summarized on its raw
+measurement scale. Table~\ref{tab:descriptive-overall} reports completeness,
+central tendency, dispersion, range, and skewness for the ten continuous
+features across all 114 observations. No predictor contains a missing value in
+this synthetic cohort.
+
+\begin{table}[htbp]
+\centering
+\caption{Descriptive statistics for the ten continuous predictors on the raw
+measurement scale. IQR is the interquartile range and Range is the observed
+minimum to maximum. Skew is the adjusted Fisher--Pearson skewness; Skew (log)
+repeats it after the $\log(x+10^{-6})$ transformation and is shown only for the
+four log-transformed hormone assays.}
+\label{tab:descriptive-overall}
+\small
+\setlength{\tabcolsep}{3pt}
+\input{output/tables/descriptive_statistics_table.tex}
+\end{table}
+
+The skew (log) column is the empirical justification for the log transformation. The six non-log transformed predictors are close to
+symmetric, with skewness between $-0.19$ and $0.22$, whereas the four remain
+assays are strongly right-skewed: $1.45$ for PAC, $1.75$ for PRA, $1.95$ for
+18-OHF, and $3.81$ for 18-oxoF. After the log transformation all four fall
+within $[-0.20,\,0.25]$. Only the four log-transformed hormones are transformed, and the
+decision follows from their marginal distributions alone, not from any
+outcome-dependent criterion.
+
+Table~\ref{tab:descriptive-class} splits each predictor by subtype and reports
+two complementary quantities: the standardized mean difference (Cohen's $d$)
+and the Welch t-statistic. They answer different questions. Cohen's $d$
+measures \emph{how large} the gap between the subtype means is, expressed in
+pooled standard deviations, and does not change with cohort size. The Welch
+statistic measures \emph{how precisely} that gap is resolved: it divides the
+same difference by its standard error, so it grows in proportion to
+$\sqrt{m}$.
+
+\begin{table}[htbp]
+\centering
+\caption{Predictor distributions by PA subtype. Cohen's $d$ is the
+standardized mean difference (UPA minus BPA) using the pooled standard
+deviation; Welch $t$ is the same difference divided by its standard error.}
+\label{tab:descriptive-class}
+\small
+\input{output/tables/descriptive_statistics_by_class_table.tex}
+\end{table}
+
+These contrasts are descriptive. Computed on the full cohort, they are not
+used to select features: every model in this report is fitted on all ten
+predictors inside the cross-validation pipeline. More importantly, a large
+univariate effect does not imply linear separability - $d$ compares class
+means, whereas the hard-margin constraint of Section~\ref{sec:hard-margin}
+requires \emph{every individual observation} to lie on the correct side of one
+hyperplane. Figure~\ref{fig:feature-distributions} shows that even PAC, the
+strongest single predictor, leaves the two subtypes heavily overlapped.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{output/figures/feature_distributions.pdf}
+    \caption{Distribution of each predictor by PA subtype. Boxes span the
+    interquartile range with the median marked; whiskers extend to
+    $1.5\times$IQR and points beyond are drawn individually. The four log transform features (PAC, PRA, 18-OHF, and 18-oxoF) use a logarithmic ordinate to make their right-skewed distributions
+    legible. Every panel shows overlapping subtype distributions, which is why
+    no single feature - and, as Section~\ref{sec:hard-margin} shows, no
+    linear combination of all ten - can separate the classes perfectly.}
+    \label{fig:feature-distributions}
+\end{figure}
+
 \section{Hard-Margin SVM: Primal, Dual, and Existence}
+\label{sec:hard-margin}
 
 \subsection{Primal Optimization Problem}
 
@@ -147,7 +221,7 @@ The derivatives of the primal objective describe only how
 $\lVert w\rVert_2^2/2$ changes; they do not by themselves enforce the margin
 constraints. Indeed, setting the objective gradient to zero would give
 $w=0$, which is generally infeasible. The Lagrangian is therefore introduced
-as an auxiliary function---not as a replacement for the primal objective---to
+as an auxiliary function-not as a replacement for the primal objective-to
 combine the objective with the constraints and express constrained
 optimality through the KKT conditions.
 
@@ -191,11 +265,10 @@ The final equality is complementary slackness. Observations with $\alpha_i>0$ li
 
 The KKT conditions are sufficient here because the objective is convex and
 the margin constraints are affine. They are also necessary whenever the
-hard-margin problem is feasible. To see the required strict feasibility,
-scale any feasible separator $(w,b)$ by a constant $c>1$; then
-$t_i((cw)^\top x_i+cb)\geq c>1$ for every observation, so Slater's condition
-holds. Conversely, if the data are not linearly separable, primal feasibility
-fails and no triplet $(w,b,\alpha)$ can satisfy the complete KKT system.
+hard-margin problem is feasible, for the reason established in
+Section~\ref{sec:slater}. Conversely, if the data are not linearly separable,
+primal feasibility fails and no triplet $(w,b,\alpha)$ can satisfy the
+complete KKT system.
 
 \subsection{Dual Problem and the Meaning of the Dual Bound}
 
@@ -232,13 +305,54 @@ $b$ from the Lagrangian and gives
 \sum_{i=1}^{m}\alpha_i t_i=0.
 \end{aligned}
 \end{equation}
-Weak duality always gives $d^*\leq p^*$. When the hard-margin constraints are
-feasible, scaling a feasible separator produces strict feasibility, so
-Slater's condition holds and strong duality gives $d^*=p^*$. If the data are
-not linearly separable, however, the primal has no feasible value $p^*$ and
-the primal--dual optimality calculation cannot produce a hard-margin
-classifier. Feasibility must therefore be checked before interpreting a dual
-solution as a trained model.
+Weak duality always gives $d^*\leq p^*$. Whether that inequality tightens to
+an equality is a separate question, settled by the constraint qualification of
+the next subsection.
+
+\subsection{Slater's Condition and Strong Duality}
+\label{sec:slater}
+
+Weak duality is automatic, but the dual is a faithful stand-in for the primal
+only when the gap closes. For a convex program
+\begin{equation}
+\begin{aligned}
+\min_{x}\quad & f(x)\\
+\text{subject to}\quad & f_i(x)\leq0,\qquad i=1,\ldots,m,\\
+& Ax=b,
+\end{aligned}
+\end{equation}
+\emph{Slater's constraint qualification} asks for a strictly feasible point:
+some $\tilde{x}\in\operatorname{int}\mathcal{D}$ with
+\begin{equation}
+    f_i(\tilde{x})<0 \quad\text{for all } i=1,\ldots,m,
+    \qquad A\tilde{x}=b,
+\end{equation}
+where $A$ has full row rank. When it holds, $p^*=d^*$; and if $d^*>-\infty$,
+the dual optimum is attained \cite{boyd2004}.
+
+Two refinements decide the matter here. The strict inequality is needed only
+for the \emph{non-affine} inequality constraints, so for a convex program
+whose inequality constraints are all affine, Slater's condition collapses to
+ordinary feasibility.
+
+That is precisely the present case. The objective
+$\frac12\lVert w\rVert_2^2$ is convex and every margin constraint
+$1-t_i(w^\top x_i+b)\leq0$ is affine in $(w,b)$, so strong duality holds for
+the hard-margin SVM as soon as one separating hyperplane exists. Feasibility is therefore the single hinge of the entire hard-margin
+analysis. The certificate of Section~\ref{sec:full-certificate} shows the
+constraints are infeasible on this dataset, so $p^*=+\infty$ and there is no
+finite primal value for the dual to certify - which is why a dual solution
+must never be read as a trained classifier before feasibility is checked.
+
+The soft-margin program of Section~\ref{sec:soft-margin} differs in exactly
+the way that matters. Its constraints
+$1-\xi_i-t_i(w^\top x_i+b)\leq0$ and $-\xi_i\leq0$ are again affine, and the
+point $(w,b,\xi)=(0,0,\mathbf{1})$ is feasible for \emph{any} dataset.
+Slater's condition therefore holds unconditionally, strong duality is
+guaranteed in advance, and the vanishing primal--dual gaps reported later
+($4.9\times10^{-10}$ for the linear model, $2.2\times10^{-11}$ for the RBF
+model) are genuine checks on solver accuracy rather than assumptions being
+taken on trust.
 
 \subsection{Linear Separability and Existence of a Hard-Margin Solution}
 
@@ -981,6 +1095,85 @@ each observation influential only in a narrow neighborhood, allowing a highly
 curved boundary that can memorize a small training cohort. Therefore $C$ and
 $\gamma$ must be tuned jointly.
 
+\subsection{Validity of the RBF Kernel: Positive Semi-Definiteness and
+Feature Map}
+\label{sec:rbf-psd}
+
+Everything above presumes that some feature map $\varphi$ exists with
+$K(x,y)=\langle\varphi(x),\varphi(y)\rangle_{\mathcal H}$. That is not
+automatic: an arbitrary similarity function need not be an inner product in
+any space, and if it is not, the dual loses concavity and the optimization
+guarantees of Section~\ref{sec:slater} no longer apply. This subsection
+establishes the two properties that license the RBF kernel.
+
+A symmetric kernel $K$ is \emph{positive semi-definite} (PSD) if for every
+finite set $x_1,\ldots,x_m$ the Gram matrix $G_{ij}=K(x_i,x_j)$ satisfies
+$c^\top Gc\geq0$ for all $c\in\mathbb{R}^m$. Four standard closure rules are
+used \cite{boyd2004}: if $K_1,K_2$ are PSD then (K1) $\lambda_1K_1+\lambda_2K_2$
+is PSD for $\lambda_1,\lambda_2\geq0$; (K2) the product $K_1K_2$ is PSD, by the
+Schur product theorem; (K3) $K(x,y)=f(x)f(y)$ is PSD for any real $f$; and
+(K4) a pointwise limit of PSD kernels is PSD.
+
+\paragraph{The RBF kernel is PSD.}
+The linear kernel is PSD because
+\begin{equation}
+    c^\top Gc=\sum_{i}\sum_{j}c_ic_j\,x_i^\top x_j
+    =\Bigl\lVert\sum_{i}c_ix_i\Bigr\rVert_2^2\geq0,
+\end{equation}
+so $(x^\top y)^k$ is PSD for every integer $k\geq0$ by repeated application of
+(K2). The exponential series has non-negative coefficients, hence
+\begin{equation}
+    \exp\bigl[2\gamma\,x^\top y\bigr]
+    =\sum_{k=0}^{\infty}\frac{(2\gamma)^k}{k!}\,(x^\top y)^k
+\end{equation}
+is a limit of non-negative combinations of PSD kernels and is PSD by (K1) and
+(K4). Expanding the squared norm as
+$\lVert x-y\rVert_2^2=\lVert x\rVert_2^2-2x^\top y+\lVert y\rVert_2^2$
+factors the RBF kernel into
+\begin{equation}
+    \exp\bigl[-\gamma\lVert x-y\rVert_2^2\bigr]
+    =\underbrace{e^{-\gamma\lVert x\rVert_2^2}
+      e^{-\gamma\lVert y\rVert_2^2}}_{\text{PSD by (K3)}}
+    \cdot
+    \underbrace{\exp\bigl[2\gamma\,x^\top y\bigr]}_{\text{PSD}},
+\end{equation}
+which is PSD by (K2). The Gram matrix is therefore PSD for any dataset and any
+$\gamma>0$.
+
+\paragraph{An explicit feature map.}
+The same expansion produces $\varphi$ directly. Writing the multinomial
+expansion of $(x^\top y)^k$ over multi-indices
+$\alpha\in\mathbb{N}_0^{p}$, with $\lvert\alpha\rvert=\sum_j\alpha_j$,
+$\alpha!=\prod_j\alpha_j!$ and $x^\alpha=\prod_jx_j^{\alpha_j}$, gives
+\begin{equation}
+    \exp\bigl[2\gamma\,x^\top y\bigr]
+    =\sum_{\alpha\in\mathbb{N}_0^{p}}
+      \frac{(2\gamma)^{\lvert\alpha\rvert}}{\alpha!}\,x^\alpha y^\alpha .
+\end{equation}
+Reinstating the two Gaussian factors and splitting each term symmetrically
+yields $K(x,y)=\langle\varphi(x),\varphi(y)\rangle$ with components
+\begin{equation}
+    \varphi_\alpha(x)=e^{-\gamma\lVert x\rVert_2^2}
+    \sqrt{\frac{(2\gamma)^{\lvert\alpha\rvert}}{\alpha!}}\;x^\alpha,
+    \qquad \alpha\in\mathbb{N}_0^{p}.
+\end{equation}
+The index set is all multi-indices, so $\mathcal H$ is
+infinite-dimensional: $\varphi$ contains every monomial in the $p$ features,
+damped by $e^{-\gamma\lVert x\rVert_2^2}$ and weighted so the series converges.
+
+\paragraph{Consequences.}
+Three points follow. First, $\varphi$ can never be formed explicitly, which is
+exactly why the kernel trick is required rather than merely convenient: the
+scalar $K(x_i,x_j)$ stands in for an inner product between infinite vectors.
+Second, PSD of the Gram matrix makes the dual objective concave, so the
+kernelized problem is a convex quadratic program with a unique optimum rather
+than a surface with spurious local maxima. Third, the primal in $\mathcal H$ is
+convex with affine constraints and admits the feasible point
+$(w,b,\xi)=(0,0,\mathbf{1})$, so Slater's condition holds exactly as in
+Section~\ref{sec:slater}; the primal--dual gap of $2.2\times10^{-11}$ reported
+for the fitted RBF model is therefore a meaningful check that the solver
+reached that optimum.
+
 \subsection{Joint Grid Search and Nested Validation}
 
 The RBF analysis uses the same log transformation, median imputation,
@@ -1351,7 +1544,7 @@ compared against the values reported in the main text.
     \item \textbf{Result tables.} All 30 generated CSV files were reproduced.
     Twenty-nine are bit-for-bit identical; the single exception is the RBF
     dual-equality KKT residual, which differed only in its floating-point
-    value ($2.78\times10^{-17}$ versus $5.20\times10^{-18}$)---both are
+    value ($2.78\times10^{-17}$ versus $5.20\times10^{-18}$)-both are
     numerical zero and reflect summation order in the linear-algebra backend,
     with no effect on any reported quantity.
     \item \textbf{LaTeX tables.} All nine generated table fragments are

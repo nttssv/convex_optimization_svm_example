@@ -21,9 +21,13 @@ reproducible artifacts.
 
 ## Reproduce the analyses
 
-Run these commands from this `draft` directory:
+Run these commands from this `draft` directory, with `scripts/` on
+`PYTHONPATH` (the soft-margin and RBF scripts import the sibling module
+`linear_hard_margin_svm`, so they fail with `ModuleNotFoundError` if it is
+not importable):
 
 ```bash
+export PYTHONPATH="$PWD/scripts"
 python3 scripts/linear_hard_margin_svm.py
 python3 scripts/build_full_data_infeasibility_certificate.py
 python3 scripts/build_svm_primal_dual_toy_example.py
@@ -31,6 +35,13 @@ python3 scripts/build_hard_margin_teaching_workbook.py
 python3 scripts/linear_soft_margin_svm.py
 python3 scripts/kernel_rbf_svm.py
 ```
+
+The scripts read the dataset via paths relative to this `draft` directory,
+so they must be launched from here (not from inside `scripts/`). On systems
+where `GridSearchCV(n_jobs=-1)` cannot create POSIX semaphores (some
+sandboxed or container environments raise `PermissionError`), prepend
+`JOBLIB_MULTIPROCESSING=0` to force the sequential backend; results are
+numerically identical.
 
 ## Rebuild the PDF
 

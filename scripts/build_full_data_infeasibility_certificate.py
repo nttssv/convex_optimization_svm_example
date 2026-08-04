@@ -14,7 +14,6 @@ import matplotlib
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
-import _pubstyle; _pubstyle.apply()
 from matplotlib.ticker import FormatStrFormatter
 import numpy as np
 import pandas as pd

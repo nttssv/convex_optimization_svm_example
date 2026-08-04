@@ -37,7 +37,7 @@
 % ---- Title metadata ----
 \title{Optimization-Based Clinical Decision Support for Curable Hypertension}
 \subtitle{SVMs: Hard-Margin Feasibility, Soft Margins, and Kernel Validation}
-\author{Nguyen Thanh Tung}
+\author{Nguyen Thanh Tung \and Duong Van Khoa}
 \institute{Optimization for Data Science Project \\ Singapore University of Technology and Design}
 \date{\today}
 
@@ -98,6 +98,59 @@
     \end{column}
   \end{columns}
   \take{Frame subtype classification as a maximum-margin optimization problem.}
+\end{frame}
+
+% ---------- Descriptive statistics ----------
+\begin{frame}{What the data look like before any model}
+  \centering
+  \includegraphics[width=0.80\textwidth]{output/figures/feature_distributions.pdf}
+  \\[0.15em]
+  {\footnotesize 114 patients, no missing values.
+  \textcolor{UPAblue}{\textbf{UPA}} versus \textcolor{BPAorange}{\textbf{BPA}};
+  hormone assays on a log ordinate.}
+  \take{Every panel overlaps --- no single measurement splits the two subtypes.}
+\end{frame}
+
+\begin{frame}{Descriptive statistics --- the subtype contrast}
+  \begin{columns}[T]
+    \begin{column}{0.58\textwidth}
+      \scriptsize
+      \setlength{\tabcolsep}{3.5pt}
+      \begin{tabular}{lccrr}
+        \toprule
+        Feature & UPA & BPA & Cohen's $d$ & Welch $t$ \\
+        \midrule
+        PAC (ng/dL)      & 34.9  & 18.4  & \textbf{1.17} & \textbf{6.20} \\
+        18-OHF (ng/dL)   & 1883  & 942   & \textbf{0.99} & \textbf{5.25} \\
+        Potassium (mmol/L) & 3.38 & 3.79 & \textbf{-0.95} & \textbf{-5.09} \\
+        PRA (ng/mL/h)    & 0.51  & 0.96  & \textbf{-0.80} & \textbf{-4.32} \\
+        Diastolic BP (mmHg) & 92.3 & 84.1 & \textbf{0.75} & \textbf{4.03} \\
+        Tumor size (mm)  & 15.4  & 11.4  & \textbf{0.74} & \textbf{3.98} \\
+        18-oxoF (ng/dL)  & 148.1 & 71.8  & \textbf{0.66} & \textbf{3.46} \\
+        \midrule
+        DDD (drugs)      & 2.48  & 2.14  & 0.36 & 1.94 \\
+        Systolic BP (mmHg) & 141.4 & 137.5 & 0.23 & 1.22 \\
+        Age (years)      & 48.6  & 50.1  & -0.15 & -0.80 \\
+        \bottomrule
+      \end{tabular}
+      \\[0.4em]
+      {\tiny Bold: $|t|>2$, i.e.\ separates the subtypes (7 of 10).
+      Sign: $+$ means higher in UPA.}
+    \end{column}
+    \begin{column}{0.40\textwidth}
+      \begin{block}{Cohen's $d$ --- how big}
+        \small
+        Gap between \emph{class means}, in pooled SDs:
+        $0.2$ small, $0.5$ medium, $0.8+$ large.
+      \end{block}
+      \begin{block}{Welch $t$ --- how certain}
+        \small
+        Same gap $\div$ standard error; grows with $\sqrt{n}$.
+        Evidence, not size.
+      \end{block}
+    \end{column}
+  \end{columns}
+  \take{Strong univariate signal, but overlapping distributions --- a perfect separator is in doubt.}
 \end{frame}
 
 % ---------- Hard margin geometry ----------

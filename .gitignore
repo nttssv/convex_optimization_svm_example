@@ -1,8 +1,5 @@
-# regenerated outputs (produced by running scripts/)
 output/csv/
-output/figures/
 output/xlsx/
-# latex build artifacts
 *.aux
 *.log
 *.out
@@ -10,7 +7,5 @@ output/xlsx/
 *.fls
 *.fdb_latexmk
 *.synctex.gz
-# python
 __pycache__/
 *.pyc
-.ipynb_checkpoints/

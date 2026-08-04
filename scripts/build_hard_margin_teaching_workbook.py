@@ -13,7 +13,6 @@ import matplotlib
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
-import _pubstyle; _pubstyle.apply()
 import numpy as np
 import pandas as pd
 from openpyxl import Workbook
