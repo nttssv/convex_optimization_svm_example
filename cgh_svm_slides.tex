@@ -9,8 +9,10 @@
 
 % slide number in the bottom-right of every frame
 \setbeamertemplate{footline}{%
-  \hfill\usebeamerfont{footline}\color{softgray}\small
-  \insertframenumber\,/\,\inserttotalframenumber\hspace{0.4cm}\vspace{0.15cm}%
+  \begin{beamercolorbox}[wd=\paperwidth,ht=2.5ex,dp=1ex,rightskip=0.4cm]{footline}%
+    \hfill\usebeamerfont{footline}\color{softgray}\small
+    \insertframenumber\,/\,\inserttotalframenumber
+  \end{beamercolorbox}%
 }
 
 \definecolor{UPAblue}{HTML}{1F77B4}
@@ -38,7 +40,7 @@
   \end{beamercolorbox}%
 }
 
-\newcommand{\take}[1]{\vspace{0.3em}\begin{beamercolorbox}[wd=\textwidth,sep=6pt,rounded=true]{block body}\color{darkink}\small\textbf{Takeaway:} #1\end{beamercolorbox}}
+\newcommand{\take}[1]{\vspace{0.3em}\begin{beamercolorbox}[wd=\textwidth,sep=6pt,rounded=true]{block body}\color{darkink}\small\textbf{Key point:} #1\end{beamercolorbox}}
 
 % discreet lecture-note reference, top-right of the slide body
 \newcommand{\lecref}[1]{{\hfill\tiny\color{softgray}\textit{Lecture ref: #1}\par}\vspace{-0.4em}}
@@ -58,50 +60,49 @@
 \end{frame}
 
 % ---------- Roadmap ----------
-\begin{frame}{The story in one line}
+\begin{frame}{How the analysis is organized}
   \vspace{0.5em}
   \begin{center}
     \large
-    \textcolor{UPAblue}{\textbf{strict}}
+    \textcolor{UPAblue}{\textbf{hard margin}}
     $\,\rightarrow\,$
-    \textcolor{BPAorange}{\textbf{prove impossible}}
+    \textcolor{BPAorange}{\textbf{check feasibility}}
     $\,\rightarrow\,$
-    \textcolor{UPAblue}{\textbf{relax}}
+    \textcolor{UPAblue}{\textbf{soft margin}}
     $\,\rightarrow\,$
-    \textcolor{BPAorange}{\textbf{compare}}
+    \textcolor{BPAorange}{\textbf{RBF comparison}}
     $\,\rightarrow\,$
-    \textcolor{UPAblue}{\textbf{conclude}}
+    \textcolor{UPAblue}{\textbf{model choice}}
   \end{center}
   \vspace{1em}
   \begin{itemize}
-    \item Try the \textbf{hard-margin} SVM: a straight line with zero mistakes.
-    \item \textbf{Prove} no such line exists --- three independent ways.
-    \item \textbf{Relax} to a soft margin that charges for mistakes.
-    \item \textbf{Compare} against a curved (RBF kernel) boundary.
-    \item \textbf{Conclude}: the simple linear model is the right choice.
+    \item Start with a \textbf{hard-margin SVM}, which allows no classification errors.
+    \item Check whether its constraints are feasible in three different ways.
+    \item Move to a \textbf{soft-margin SVM} once the hard-margin model is ruled out.
+    \item Compare the linear model with an \textbf{RBF-kernel SVM}.
+    \item Choose the model using nested cross-validation.
   \end{itemize}
 \end{frame}
 
 % ---------- Steps at a glance ----------
-\begin{frame}{The five steps --- what each one asks and answers}
+\begin{frame}{Analysis plan}
   \small
   \begin{itemize}\setlength\itemsep{5pt}
-    \item[\textcolor{UPAblue}{\textbf{1}}] \textbf{Hard margin --- can a perfect line exist?}
-      Demand a straight boundary that classifies \emph{every} patient correctly with a margin.
-      This is a convex feasibility problem: either such a line exists, or it provably does not.
-    \item[\textcolor{BPAorange}{\textbf{2}}] \textbf{Prove it is impossible.}
-      Three independent checks agree the classes are not linearly separable:
+    \item[\textcolor{UPAblue}{\textbf{1}}] \textbf{Test the hard-margin model.}
+      It requires a linear boundary that classifies every observation correctly with a margin.
+      We first ask whether those constraints are feasible.
+    \item[\textcolor{BPAorange}{\textbf{2}}] \textbf{Confirm the infeasibility result.}
+      Three checks show that the classes are not linearly separable:
       \emph{(2a)} the LP solver returns ``infeasible''; \emph{(2b)} a $12$-patient Farkas
       certificate turns that into a proof ($0\ge 1$); \emph{(2c)} the two convex hulls overlap.
-    \item[\textcolor{UPAblue}{\textbf{3}}] \textbf{Relax to the soft margin.}
-      Allow mistakes but charge for them through slack variables and a penalty $C$.
-      Always solvable; \emph{(3a)} tune $C$ by grid search, \emph{(3b)} read it as a Pareto
-      trade-off, \emph{(3c)} see the fitted line, \emph{(3d)} solve the primal directly by SGD.
-    \item[\textcolor{BPAorange}{\textbf{4}}] \textbf{Compare against a curved boundary.}
-      Swap the inner product for an RBF kernel so the boundary can bend, then check
-      whether the extra flexibility actually helps or merely overfits.
+    \item[\textcolor{UPAblue}{\textbf{3}}] \textbf{Fit a soft-margin model.}
+      Slack variables allow margin violations, controlled by the penalty $C$.
+      We tune $C$, inspect the fitted boundary, and also solve the primal with SGD.
+    \item[\textcolor{BPAorange}{\textbf{4}}] \textbf{Compare with an RBF kernel.}
+      The kernel allows a nonlinear boundary. Nested cross-validation tests whether that
+      added flexibility improves performance.
   \end{itemize}
-  \take{Steps 1--2 establish \emph{what is impossible}; steps 3--4 find \emph{the best thing that is possible}.}
+  \take{The hard-margin analysis is a feasibility check; model performance is assessed only after moving to soft margins.}
 \end{frame}
 
 % ---------- Problem ----------
@@ -128,7 +129,7 @@
       \end{block}
     \end{column}
   \end{columns}
-  \take{Frame subtype classification as a maximum-margin optimization problem.}
+  \take{The task is to distinguish UPA from BPA using ten routinely measured predictors.}
 \end{frame}
 
 % ---------- Descriptive statistics ----------
@@ -139,7 +140,7 @@
   {\footnotesize 114 patients, no missing values.
   \textcolor{UPAblue}{\textbf{UPA}} versus \textcolor{BPAorange}{\textbf{BPA}};
   hormone assays on a log ordinate.}
-  \take{Every panel overlaps --- no single measurement splits the two subtypes.}
+  \take{Every predictor overlaps across the two groups, so no single measurement provides a clean split.}
 \end{frame}
 
 \begin{frame}{Descriptive statistics --- the subtype contrast}
@@ -166,7 +167,7 @@
         \bottomrule
       \end{tabular}
       \\[0.4em]
-      {\tiny Bold: $p<0.05$ (Welch $t$-test), i.e.\ separates the subtypes (7 of 10).
+      {\tiny Bold: $p<0.05$ (Welch $t$-test), indicating a difference in group means (7 of 10).
       Sign: $+$ means higher in UPA.}
     \end{column}
     \begin{column}{0.40\textwidth}
@@ -182,15 +183,15 @@
       \end{block}
     \end{column}
   \end{columns}
-  \take{Strong univariate signal, but overlapping distributions --- a perfect separator is in doubt.}
+  \take{Several predictors differ between groups, but their distributions still overlap.}
 \end{frame}
 
 % ---------- Hard margin geometry ----------
-\begin{frame}{Step 1 --- the strictest model: hard-margin SVM}
+\begin{frame}{Can a hard-margin SVM fit these data?}
   \lecref{Statistical Learning Models (W9); Convex Optimization Models (W8)}
   \begin{columns}[T]
     \begin{column}{0.48\textwidth}
-      Find the \textbf{widest empty corridor} between the two classes:
+      The hard-margin SVM maximizes the distance between the two supporting hyperplanes:
       \[
         \min_{w,b}\ \tfrac12\lVert w\rVert^2
         \quad\text{s.t.}\quad t_i(w^\top x_i+b)\ge 1.
@@ -200,7 +201,7 @@
         \item Margin width $=2/\lVert w\rVert$.
         \item \textbf{Zero mistakes allowed.}
       \end{itemize}
-      A convex quadratic program --- \emph{if} a feasible line exists.
+      This is a convex quadratic program, provided the constraints are feasible.
     \end{column}
     \begin{column}{0.52\textwidth}
       \centering
@@ -211,10 +212,10 @@
 \end{frame}
 
 % ---------- Infeasibility ----------
-\begin{frame}{Step 2 --- prove no such line exists}
+\begin{frame}{Three checks for linear separability}
   \lecref{Introduction to Duality (W9); First-Order Optimality (W10)}
   \vspace{0.4em}
-  We attack the question \alert{three independent ways}. If any one succeeds, the hard-margin model is impossible --- and all three agree.
+  We check the hard-margin constraints in \alert{three different ways}. All three reach the same conclusion.
   \vspace{0.8em}
   \begin{columns}[T]
     \begin{column}{0.33\textwidth}
@@ -224,23 +225,23 @@
     \end{column}
     \begin{column}{0.33\textwidth}
       \begin{block}{2b. Farkas certificate}
-        \small Get a signed receipt --- 12 patients that \emph{prove} $0\ge1$.
+        \small Use 12 nonzero weights to derive the contradiction $0\ge1$.
       \end{block}
     \end{column}
     \begin{column}{0.33\textwidth}
       \begin{block}{2c. Convex hulls}
-        \small Show the two classes literally share a point.
+        \small Show that the two class hulls share a point.
       \end{block}
     \end{column}
   \end{columns}
   \vspace{0.9em}
   \begin{center}
-    \small Each is stronger than the last: a solver \emph{says} no; Farkas \emph{proves} no; the hulls \emph{show} why.
+    \small The solver gives the numerical result, while the certificate and convex hulls verify it algebraically and geometrically.
   \end{center}
 \end{frame}
 
 % ---------- 2a solver ----------
-\begin{frame}{Step 2a --- ask the solver}
+\begin{frame}{The solver finds no feasible hard margin}
   \begin{columns}[T]
     \begin{column}{0.52\textwidth}
       Feasibility of the hard-margin constraints is itself a \textbf{linear program}: does any $(w,b)$ satisfy
@@ -272,62 +273,62 @@
       \end{block}
     \end{column}
   \end{columns}
-  \take{A ``no'' from the solver is a starting point --- but why should we trust it? Steps 2b--2c give proof.}
+  \take{The hard-margin constraints are infeasible on the full dataset and in every training fold.}
 \end{frame}
 
 % ---------- 2b Farkas ----------
-\begin{frame}{Step 2b --- the Farkas certificate}
+\begin{frame}{A Farkas certificate confirms infeasibility}
   \lecref{Introduction to Duality (W9) --- theorem of the alternative}
+  \small
   \begin{columns}[T]
     \begin{column}{0.42\textwidth}
       \textbf{Farkas' lemma}: exactly \emph{one} of two systems can hold ---
       either a separating $w$ exists, \textbf{or} a set of nonnegative weights $\lambda$ gives a contradiction.
-      \vspace{0.5em}
+      \vspace{0.2em}
       \begin{itemize}
-        \item The solver hands back \textbf{12 patients} with weights $\lambda_i\ge0$.
-        \item They combine to prove $0\ge 1$ --- impossible.
-        \item This is a \emph{checkable receipt}: no need to trust the solver's search.
+        \item The certificate has nonzero weights for \textbf{12 observations}, with $\lambda_i\ge0$.
+        \item Combining their constraints gives $0\ge 1$, which is impossible.
+        \item The calculation can be checked independently of the solver status.
       \end{itemize}
     \end{column}
     \begin{column}{0.58\textwidth}
       \centering
-      \includegraphics[width=\textwidth]{output/figures/farkas_lemma_schematic.pdf}\\
-      {\footnotesize Only one column can be true. On this data it is the right one.}
+      \includegraphics[width=0.94\textwidth]{output/figures/farkas_lemma_schematic.pdf}\\
+      {\footnotesize Exactly one system can be feasible. For these data, it is the certificate system on the right.}
     \end{column}
   \end{columns}
-  \take{The certificate turns ``the solver said no'' into a proof anyone can verify by hand.}
+  \take{The certificate proves that the hard-margin constraints are inconsistent.}
 \end{frame}
 
 % ---------- 2c convex hull ----------
-\begin{frame}{Step 2c --- what the certificate means: overlapping hulls}
+\begin{frame}{The convex hulls explain the infeasibility}
   \begin{columns}[T]
     \begin{column}{0.42\textwidth}
       \small
-      The same $\lambda$ weights have a picture. Rescaled, they build \textbf{one point inside both classes' convex hulls}:
+      After rescaling the same $\lambda$ weights, we obtain \textbf{the same point from both class convex hulls}:
       \[
         \textstyle\sum_i \beta_i^{+} x_i = \sum_i \beta_i^{-} x_i,
       \]
       matching to $6.66\times10^{-16}$ (machine zero).
       \begin{itemize}
         \item A shared point $\Rightarrow$ no hyperplane separates the classes.
-        \item Geometry, solver, and algebra tell one story.
+        \item This gives a geometric interpretation of the solver and Farkas results.
       \end{itemize}
     \end{column}
     \begin{column}{0.58\textwidth}
       \centering
       \includegraphics[width=\textwidth]{output/figures/convex_hull_overlap_2d.pdf}\\
-      {\footnotesize The real cohort in a 2-D projection: the hulls clearly overlap. The full-dimensional proof is exact.}
+      {\footnotesize The synthetic cohort in a 2-D projection. The exact certificate is computed in the full feature space.}
     \end{column}
   \end{columns}
-  \take{The hard-margin model is not a failed solve --- it is provably impossible on this data.}
 \end{frame}
 
 % ---------- Soft margin ----------
-\begin{frame}{Step 3 --- relax: the soft-margin SVM}
+\begin{frame}{Soft margins allow violations}
   \lecref{Statistical Learning Models (W9) --- hinge loss, slack, penalty $C$}
   \begin{columns}[T]
     \begin{column}{0.46\textwidth}
-      Allow mistakes, but \textbf{charge} for them with slack $\xi_i$:
+      Slack variables $\xi_i$ allow observations to fall inside the margin or be misclassified:
       \[
         \min_{w,b,\xi}\ \tfrac12\lVert w\rVert^2 + C\!\sum_i \xi_i
       \]
@@ -335,9 +336,9 @@
         \text{s.t.}\ \ t_i(w^\top x_i+b)\ge 1-\xi_i,\ \ \xi_i\ge0.
       \]
       \begin{itemize}
-        \item $C$ = strictness knob (chosen by nested CV).
-        \item Selected \textbf{$C=0.01$} (leakage-safe grid search).
-        \item Always solvable --- overlap is modeled, not assumed away.
+        \item $C$ controls the penalty assigned to margin violations.
+        \item Nested cross-validation selected \textbf{$C=0.01$}.
+        \item The model can now accommodate overlap between the classes.
       \end{itemize}
     \end{column}
     \begin{column}{0.54\textwidth}
@@ -349,18 +350,18 @@
 \end{frame}
 
 % ---------- 3a C grid search ----------
-\begin{frame}{Step 3a --- choosing $C$ by grid search}
+\begin{frame}{Cross-validation selects $C=0.01$}
   \begin{columns}[T]
     \begin{column}{0.40\textwidth}
-      Sweep $C$ over $10^{-2}\ldots10^{2}$ and score each by \textbf{inner-fold validation} AUROC (never the test fold --- leakage-safe).
+      We evaluated $C$ from $10^{-2}$ to $10^{2}$ using \textbf{inner-fold validation} AUROC. The outer test fold was not used for tuning.
       \vspace{0.5em}
       \begin{itemize}
         \item Training AUROC stays flat near $0.96$ at every $C$.
         \item Validation AUROC \emph{peaks at the smallest} $C=0.01$.
-        \item Larger $C$ (harder penalty) $\Rightarrow$ worse generalization.
+        \item Validation performance declines as $C$ increases.
       \end{itemize}
       \vspace{0.4em}
-      The gap between the two curves \emph{is} the overfitting.
+      The train--validation gap provides a simple check for overfitting.
     \end{column}
     \begin{column}{0.60\textwidth}
       \centering
@@ -368,43 +369,40 @@
       {\footnotesize Mean validation vs training AUROC across the $C$ grid; band is $\pm1$ SD over folds. The selected $C=0.01$ is circled.}
     \end{column}
   \end{columns}
-  \take{Stronger regularization (small $C$) generalizes best on this overlapping data.}
+  \take{The most strongly regularized candidate, $C=0.01$, gives the best validation AUROC.}
 \end{frame}
 
 % ---------- 3b Pareto ----------
-\begin{frame}{Step 3b --- the same grid as a Pareto trade-off}
+\begin{frame}{$C=0.01$ also has the smallest generalization gap}
   \begin{columns}[T]
     \begin{column}{0.40\textwidth}
-      Plot each $C$ as (train--validation gap, validation AUROC). The best model is \textbf{top-left}: high AUROC \emph{and} little overfitting.
+      Each value of $C$ is plotted by its train--validation gap and validation AUROC. Preferred settings lie near the \textbf{top-left}.
       \vspace{0.5em}
       \begin{itemize}
-        \item $C=0.01$ is the \alert{single Pareto-optimal} point --- it wins on \emph{both} axes at once.
-        \item Every larger $C$ gives away AUROC \emph{and} widens the gap.
-        \item No trade-off to negotiate: the simplest penalty is strictly best here.
+        \item $C=0.01$ is the only \alert{Pareto-optimal} point in this grid.
+        \item Every larger value has lower validation AUROC and a wider gap.
       \end{itemize}
     \end{column}
     \begin{column}{0.60\textwidth}
       \centering
       \includegraphics[width=\textwidth]{output/figures/fig_step3_pareto.pdf}\\
-      {\footnotesize Color encodes $\log_{10}C$; the star is the selected, Pareto-optimal model.}
+      {\footnotesize Color shows $\log_{10}C$; the star marks the selected model.}
     \end{column}
   \end{columns}
-  \take{$C=0.01$ dominates the grid on both axes at once.}
+  \take{$C=0.01$ has both the highest validation AUROC and the smallest train--validation gap.}
 \end{frame}
 
 % ---------- 3c PC-space decision boundary ----------
-\begin{frame}{Step 3c --- what the soft-margin line looks like}
+\begin{frame}{Where the soft-margin boundary falls}
   \begin{columns}[T]
     \begin{column}{0.40\textwidth}
-      Projecting the cohort onto its first two principal components makes the fitted \textbf{soft-margin boundary} visible.
+      The first two principal components provide a 2-D view of the fitted \textbf{soft-margin boundary}.
       \vspace{0.5em}
       \begin{itemize}
-        \item The line runs \emph{straight through the overlap} where the two hulls intersect.
-        \item Circled points are \textbf{support vectors} --- almost all sit in the contested band.
-        \item Points inside the margin or on the wrong side are exactly what the slack $\xi_i$ pays for.
+        \item The boundary passes through the region where the two class hulls overlap.
+        \item Circled observations are \textbf{support vectors}, concentrated near the boundary.
+        \item Slack variables account for observations inside the margin or on the wrong side.
       \end{itemize}
-      \vspace{0.4em}
-      {\footnotesize This 2-D fit is illustrative; the reported model uses all 10 features.}
     \end{column}
     \begin{column}{0.60\textwidth}
       \centering
@@ -412,77 +410,115 @@
       {\footnotesize Solid: decision boundary; dashed: the $\pm1$ margins. Hulls overlap, so no line separates them cleanly.}
     \end{column}
   \end{columns}
-  \take{A separating line cannot avoid the overlap --- the soft margin accepts it and charges for it.}
+\end{frame}
+
+% ---------- From constrained soft margin to SGD objective ----------
+\begin{frame}{From the constrained SVM to an SGD objective}
+  \lecref{Statistical Learning Models (W9); The Stochastic Gradient Method (W10)}
+  \small
+  \begin{columns}[T]
+    \begin{column}{0.49\textwidth}
+      \textbf{1. Start with the constrained soft-margin problem}
+      \[
+        \min_{w,b,\xi}\ \tfrac12\lVert w\rVert^2+C\sum_i\xi_i,
+        \quad
+        \begin{aligned}
+          t_i(w^\top x_i+b)&\ge 1-\xi_i,\\[-2pt]
+          \xi_i&\ge0.
+        \end{aligned}
+      \]
+      The smallest feasible slack is
+      \[
+        \xi_i=\max\!\left(0,1-t_i(w^\top x_i+b)\right),
+      \]
+      which is the \textbf{hinge loss} $\ell_i(w,b)$.
+    \end{column}
+    \begin{column}{0.49\textwidth}
+      \textbf{2. Substitute the hinge loss and rescale}
+      \[
+        \tfrac12\lVert w\rVert^2+C\sum_i\ell_i(w,b).
+      \]
+      Dividing by the positive constant $mC$ does not change the minimizer:
+      \[
+        P(w,b)=\frac1m\sum_i\ell_i(w,b)
+        +\frac{\lambda}{2}\lVert w\rVert^2,
+        \qquad \boxed{\lambda=\frac1{mC}}.
+      \]
+      This is a finite sum, so SGD can sample one observation and use its subgradient at each step.
+    \end{column}
+  \end{columns}
+  \take{The rescaling is not required by SGD itself; eliminating the constraints gives the convenient unconstrained finite-sum form used by the Pegasos update.}
 \end{frame}
 
 % ---------- SGM on the primal ----------
-\begin{frame}{Step 3d --- reaching the same solution with SGD}
+\begin{frame}{A separate SGD run uses $\lambda=0.01$}
   \lecref{The Stochastic Gradient Method; Strong Convexity \& Descent (W10)}
   \small
-  The soft-margin objective is a \textbf{finite sum} over the $m$ patients. This means we
-  can optimize it one randomly selected patient at a time, without solving the dual QP:
-  $w_{k+1}=w_k-\eta_k g_k$ with
-  $g_k=\lambda w_k$ if $t_k w_k^\top x_k\ge 1$, else $g_k=\lambda w_k-t_k x_k$
-  (step $\eta_k=1/(\lambda k)$; at the hinge, we use a \emph{subgradient} together with
-  the regularization term). It comes within $5\%$ of the optimum after about 14 epochs and
-  within $1\%$ after about 67. Its final direction closely matches the dual solution
-  (cosine $0.99$; AUROC $0.958$ vs $0.955$).
+  SGD minimizes the normalized hinge-loss objective
+  \[
+    P(w)=\frac{1}{m}\sum_{i=1}^{m}\max(0,1-t_iw^\top x_i)
+    +\frac{\lambda}{2}\lVert w\rVert^2, \qquad \lambda=0.01.
+  \]
+  Here \textbf{$\lambda$ is the L2 regularization coefficient}; it also sets the step size
+  $\eta_k=1/(\lambda k)$. It is not the Farkas weight $\lambda_i$ and is not numerically
+  the same parameter as $C$. Under this normalization, equivalent settings satisfy
+  $\lambda=1/(mC)$; this experiment uses $\lambda=0.01$ as a separate SGD setting.
+  The update is $w_{k+1}=w_k-\eta_k g_k$, where $g_k=\lambda w_k$ outside the hinge and
+  $g_k=\lambda w_k-t_kx_k$ for a margin violation.
   \vspace{-0.4em}
   \begin{center}
-    \includegraphics[width=0.92\textwidth,height=0.48\textheight,keepaspectratio]{output/figures/sgm_convergence_slide.pdf}
+    \includegraphics[width=0.88\textwidth,height=0.37\textheight,keepaspectratio]{output/figures/sgm_convergence_slide.pdf}
   \end{center}
-  \vspace{-0.5em}
-  \take{SGD gets very close to the dual solution. The remaining fluctuations reflect stochastic optimization, not a new test of separability.}
 \end{frame}
 
 % ---------- RBF derivation ----------
-\begin{frame}{Step 4 --- from soft margin to a kernel}
+\begin{frame}{An RBF kernel allows a nonlinear boundary}
   \lecref{Introduction to Duality (W9); Statistical Learning Models (W9) --- kernels}
-  \textbf{1. The soft-margin primal} (what we solved in Step 3):
+  \textbf{1. Start from the soft-margin primal:}
   \[
     \min_{w,b,\xi}\ \tfrac12\lVert w\rVert^2 + C\sum_i \xi_i
     \quad\text{s.t.}\quad t_i(w^\top x_i+b)\ge 1-\xi_i,\ \ \xi_i\ge 0.
   \]
-  \textbf{2. Its Lagrangian dual} --- the data enters \alert{only through inner products} $x_i^\top x_j$:
+  \textbf{2. In the Lagrangian dual,} the data enter \alert{only through inner products} $x_i^\top x_j$:
   \[
     \max_{\alpha}\ \sum_i \alpha_i - \tfrac12\sum_{i,j}\alpha_i\alpha_j\, t_i t_j\,\underbrace{x_i^\top x_j}_{\text{inner product}}
     \quad\text{s.t.}\quad 0\le\alpha_i\le C,\ \ \sum_i\alpha_i t_i = 0.
   \]
   \begin{columns}[T]
     \begin{column}{0.5\textwidth}
-      \textbf{3. The kernel trick.} Map $x\!\mapsto\!\varphi(x)$ into a higher space and replace every inner product by a \textbf{kernel}:
+      \textbf{3. Replace the inner product.} Map $x\!\mapsto\!\varphi(x)$ and use a \textbf{kernel}:
       \[
         x_i^\top x_j \;\longrightarrow\; K(x_i,x_j)=\varphi(x_i)^\top\varphi(x_j).
       \]
     \end{column}
     \begin{column}{0.5\textwidth}
-      \textbf{4. Choose the RBF kernel:}
+      \textbf{4. For the RBF kernel:}
       \[
         K(x_i,x_j)=\exp\!\big(-\gamma\lVert x_i-x_j\rVert^2\big).
       \]
-      \small A curved boundary in the original space, still a convex QP in $\alpha$.
+      \small This gives a nonlinear boundary in the original space while the dual remains a convex QP.
     \end{column}
   \end{columns}
   \vspace{0.3em}
   \begin{center}
     Decision score becomes \;$f(x)=\displaystyle\sum_i \alpha_i t_i\,K(x_i,x)+b$.
   \end{center}
-  \take{Only the inner product changes --- everything else in the soft-margin problem stays put.}
+  \take{The RBF kernel changes the shape of the boundary without changing the convex dual optimization problem.}
 \end{frame}
 
 % ---------- RBF compare ----------
-\begin{frame}{Step 4 --- compare against a curved boundary (RBF kernel)}
+\begin{frame}{RBF tuning favors the smoothest boundary}
   \begin{columns}[T]
     \begin{column}{0.44\textwidth}
       The RBF kernel $K(x_i,x_j)=e^{-\gamma\lVert x_i-x_j\rVert^2}$ can bend the boundary.
       \vspace{0.5em}
       \begin{itemize}
-        \item Joint search over 81 $(C,\gamma)$ pairs, nested CV.
-        \item Best: $C=0.01,\ \gamma=0.001$ --- the \emph{smoothest} setting.
-        \item Large $\gamma$: perfect training, near-chance validation (overfit).
+        \item Nested cross-validation tested 81 $(C,\gamma)$ pairs.
+        \item The selected pair was $C=0.01,\ \gamma=0.001$, the \emph{smoothest} setting.
+        \item Large $\gamma$ values fit the training data perfectly but perform near chance on validation data.
       \end{itemize}
       \vspace{0.4em}
-      The data wanted a nearly-straight boundary.
+      The selected RBF boundary is therefore close to linear.
     \end{column}
     \begin{column}{0.56\textwidth}
       \centering
@@ -493,47 +529,47 @@
 \end{frame}
 
 % ---------- Pareto frontier ----------
-\begin{frame}{Step 4 --- performance versus overfitting: the Pareto view}
+\begin{frame}{More flexible RBF settings overfit}
   \begin{columns}[T]
     \begin{column}{0.40\textwidth}
-      Plot every candidate as (train--validation gap, validation AUROC). The \textbf{best models sit in the top-left}: high AUROC, small gap.
+      Each candidate is plotted by its train--validation gap and validation AUROC. Preferred models are near the \textbf{top-left}.
       \vspace{0.5em}
       \begin{itemize}
-        \item \textcolor{UPAblue}{\textbf{Linear}}: the whole frontier is tightly clustered top-left --- little room to overfit.
-        \item \textcolor{BPAorange}{\textbf{RBF}}: a long tail trades generalization for training fit as $\gamma$ grows.
-        \item The Pareto-optimal RBF point coincides with the \emph{smoothest} setting --- essentially the linear model.
+        \item \textcolor{UPAblue}{\textbf{Linear}} candidates remain close to the top-left.
+        \item \textcolor{BPAorange}{\textbf{RBF}} candidates develop a large train--validation gap as $\gamma$ increases.
+        \item The Pareto-optimal RBF setting is again the smoothest one and is close to linear.
       \end{itemize}
     \end{column}
     \begin{column}{0.60\textwidth}
       \centering
       \includegraphics[width=\textwidth]{output/figures/svm_grid_pareto_frontier.pdf}\\
-      {\footnotesize The star is the Pareto-optimal model in each grid. RBF's extra flexibility only buys a longer overfitting tail, not a better frontier.}
+      {\footnotesize The star marks the Pareto-optimal model in each grid. The additional RBF settings increase the overfitting range without improving the best validation result.}
     \end{column}
   \end{columns}
-  \take{More flexibility did not push the frontier outward --- it only added ways to overfit.}
+  \take{The nonlinear settings increase overfitting without improving the best validation performance.}
 \end{frame}
 
 % ---------- Step 4 RBF PC-space boundary ----------
-\begin{frame}{Step 4 --- the kernel boundary redrawn in PC1/PC2}
+\begin{frame}{What the RBF boundary looks like}
   \begin{columns}[T]
     \begin{column}{0.40\textwidth}
       \small
-      The same projection as Step 3c, now with the \textbf{RBF-kernel} decision surface.
+      This is the same 2-D projection, now showing the \textbf{RBF-kernel} decision surface.
       \begin{itemize}\setlength\itemsep{2pt}
         \item The boundary is \alert{curved}, not straight.
-        \item It bends \emph{around} points, yet the two hulls still overlap.
-        \item Curvature relabels a few borderline points but does not separate the classes.
+        \item It bends around some observations, but the two hulls still overlap.
+        \item A few borderline observations change classification, but the classes remain mixed.
       \end{itemize}
       {\footnotesize Illustrative 2-D fit (moderate $\gamma$); the tuned model chose a much smoother $\gamma$.}
     \end{column}
     \begin{column}{0.60\textwidth}
       \centering
       \includegraphics[width=0.94\textwidth,height=0.62\textheight,keepaspectratio]{output/figures/fig_step4_rbf_pc_boundary.pdf}\\
-      {\footnotesize Compare with the straight line of Step 3c: more shape, same overlap.}
+      {\footnotesize Compared with the linear boundary, the shape changes but the overlap remains.}
     \end{column}
   \end{columns}
   \vspace{-0.3em}
-  \take{The kernel can bend the boundary --- but bending does not make overlapping classes separable.}
+  \take{A nonlinear boundary changes some local classifications but does not remove the underlying class overlap.}
 \end{frame}
 
 % ---------- Statistical verdict ----------
@@ -553,34 +589,34 @@
         \item Linear matched or beat RBF in 12 of 20 runs
       \end{itemize}
       \vspace{0.4em}
-      \alert{In practical terms, the two models discriminate equally well.}
+      \alert{The repeated runs show no meaningful difference in discrimination.}
     \end{column}
   \end{columns}
-  \take{Across repeated splits, the RBF model shows no reliable advantage over the simpler linear model.}
+  \take{Across repeated splits, the RBF model provides no consistent improvement over the linear model.}
 \end{frame}
 
 % ---------- Conclusion ----------
-\begin{frame}{Step 5 --- conclude}
+\begin{frame}{The linear soft-margin model is sufficient here}
   \begin{columns}[T]
     \begin{column}{0.55\textwidth}
-      \begin{block}{Verdict}
+      \begin{block}{Results}
         \begin{itemize}
-          \item Hard-margin $\to$ \textbf{impossible} (proven three ways).
-          \item Linear soft-margin $\to$ \textbf{AUROC 0.95} \checkmark
-          \item RBF kernel $\to$ AUROC 0.94 (no gain).
+          \item The hard-margin problem is \textbf{infeasible}.
+          \item Linear soft-margin: \textbf{mean outer-fold AUROC 0.95}.
+          \item RBF kernel: mean outer-fold AUROC 0.94.
         \end{itemize}
         \vspace{0.3em}
-        \textbf{The simpler model wins.}
+        \textbf{The RBF kernel does not improve validation performance.}
       \end{block}
-      Fewer tuning knobs, an interpretable score, equal discrimination --- parsimony decides.
+      With similar discrimination, the linear model is easier to tune and interpret.
     \end{column}
     \begin{column}{0.45\textwidth}
       \begin{block}{Why it matters}
         \small
         \begin{itemize}
-          \item The negative feasibility result is \emph{informative}, not a bug: clinical measurements genuinely overlap.
-          \item Complexity must be justified by \emph{validation}, never by training fit.
-          \item Synthetic data $\Rightarrow$ methodological, not clinical, claim.
+          \item Hard-margin infeasibility reflects overlap in the feature space.
+          \item Better training fit alone is not a reason to choose a more complex model.
+          \item Because the data are synthetic, the result demonstrates the method rather than clinical performance.
         \end{itemize}
       \end{block}
     \end{column}
@@ -588,7 +624,7 @@
 \end{frame}
 
 % ---------- Cheat-sheet backup ----------
-\begin{frame}{One-page reference}
+\begin{frame}{Summary of the analysis}
   \centering
   \includegraphics[height=0.86\textheight,keepaspectratio]{output/figures/fig_cheatsheet_ref.png}
 \end{frame}
@@ -599,7 +635,7 @@
   \centering
   {\LARGE\bfseries\color{UPAblue} Thank you}\\[0.6em]
   {\large Questions?}\\[1.4em]
-  {\footnotesize Reproduced end-to-end: 30/30 result files match; independent nested-CV and statistical tests confirm the verdict.}
+  {\footnotesize The analysis is fully reproducible from the code and synthetic dataset in the project repository.}
   \vfill
 \end{frame}
 
