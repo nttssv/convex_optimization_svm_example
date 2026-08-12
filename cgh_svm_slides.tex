@@ -416,22 +416,23 @@
 \end{frame}
 
 % ---------- SGM on the primal ----------
-\begin{frame}{Step 3d --- solving the primal directly with SGD}
+\begin{frame}{Step 3d --- reaching the same solution with SGD}
   \lecref{The Stochastic Gradient Method; Strong Convexity \& Descent (W10)}
   \small
-  The soft-margin primal is a \textbf{finite sum} over the $m$ patients, so it can be
-  solved one random point at a time (no dual, no QP):
+  The soft-margin objective is a \textbf{finite sum} over the $m$ patients. This means we
+  can optimize it one randomly selected patient at a time, without solving the dual QP:
   $w_{k+1}=w_k-\eta_k g_k$ with
   $g_k=\lambda w_k$ if $t_k w_k^\top x_k\ge 1$, else $g_k=\lambda w_k-t_k x_k$
-  (step $\eta_k=1/(\lambda k)$; the hinge kink makes $g_k$ a \emph{subgradient}, as in
-  the lecture, plus the regularizer term). Reaches within $5\%$ of the optimum in $\approx14$ epochs, $1\%$
-  in $\approx67$, and matches the dual solver (cosine $0.99$, AUROC $0.958$ vs $0.955$).
+  (step $\eta_k=1/(\lambda k)$; at the hinge, we use a \emph{subgradient} together with
+  the regularization term). It comes within $5\%$ of the optimum after about 14 epochs and
+  within $1\%$ after about 67. Its final direction closely matches the dual solution
+  (cosine $0.99$; AUROC $0.958$ vs $0.955$).
   \vspace{-0.4em}
   \begin{center}
     \includegraphics[width=0.92\textwidth,height=0.48\textheight,keepaspectratio]{output/figures/sgm_convergence_slide.pdf}
   \end{center}
   \vspace{-0.5em}
-  \take{SGD reaches the same hyperplane as the dual --- but the noisy floor is a tell: the data are not separable ($B>0$).}
+  \take{SGD gets very close to the dual solution. The remaining fluctuations reflect stochastic optimization, not a new test of separability.}
 \end{frame}
 
 % ---------- RBF derivation ----------
@@ -536,25 +537,26 @@
 \end{frame}
 
 % ---------- Statistical verdict ----------
-\begin{frame}{Are linear and RBF actually different?}
+\begin{frame}{Does the curved boundary actually help?}
   \begin{columns}[T]
     \begin{column}{0.55\textwidth}
       \centering
       \includegraphics[width=\textwidth]{output/figures/fig_stat_seed_robustness.png}
     \end{column}
     \begin{column}{0.45\textwidth}
-      \textbf{Fair metric} (mean outer-fold AUROC), 20 fold seeds:
+      We repeated nested cross-validation with 20 different fold assignments and compared
+      mean outer-fold AUROC:
       \begin{itemize}
         \item Difference $= +0.0002$
         \item 95\% CI $[-0.005,+0.006]$
-        \item paired $t$: $p=0.93$ (n.s.)
-        \item Linear $\ge$ RBF in 12/20 seeds.
+        \item Paired $t$-test: $p=0.93$
+        \item Linear matched or beat RBF in 12 of 20 runs
       \end{itemize}
       \vspace{0.4em}
-      \alert{Statistically indistinguishable} on discrimination.
+      \alert{In practical terms, the two models discriminate equally well.}
     \end{column}
   \end{columns}
-  \take{The kernel never improves on the line; the tiny gap is just the random split.}
+  \take{Across repeated splits, the RBF model shows no reliable advantage over the simpler linear model.}
 \end{frame}
 
 % ---------- Conclusion ----------
