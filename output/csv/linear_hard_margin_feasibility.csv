@@ -1,0 +1,7 @@
+data_split,n_train,n_held_out,linear_hard_margin_feasible
+Full dataset,114,--,False
+Fold 1,91,23,False
+Fold 2,91,23,False
+Fold 3,91,23,False
+Fold 4,91,23,False
+Fold 5,92,22,False

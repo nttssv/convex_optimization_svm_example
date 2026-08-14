@@ -1,9 +1,6 @@
-output/csv/*
-!output/csv/primal_optimizer_comparison.csv
-output/xlsx/
-output/tables/*
-!output/tables/primal_optimizer_comparison_table.tex
-!output/tables/primal_optimizer_slide_table.tex
+# Keep the small machine-readable results and generated LaTeX fragments under
+# version control so a fresh clone can build the PDFs without first rerunning
+# every numerical experiment. Large/raster intermediates remain ignored below.
 output/figures/*.csv
 output/figures/*.txt
 tmp/
@@ -16,6 +13,8 @@ tmp/
 *.synctex.gz
 *.nav
 *.snm
+/cgh_hard_margin_project_report.pdf
+/cgh_svm_slides.pdf
 __pycache__/
 *.pyc
 ._*

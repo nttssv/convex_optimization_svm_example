@@ -1,0 +1,8 @@
+metric,value
+primal_objective_0.5_norm_w_squared,0.9422516294171888
+norm_w,1.3727721073923296
+boundary_to_support_distance_1_over_norm_w,0.7284530291772648
+full_margin_width_2_over_norm_w,1.4569060583545297
+minimum_signed_margin,0.9999999999999982
+support_vector_count,5.0
+training_accuracy_teaching_only,1.0

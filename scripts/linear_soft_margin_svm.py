@@ -45,8 +45,8 @@ CSV_DIR = ROOT / "output" / "csv"
 TABLE_DIR = ROOT / "output" / "tables"
 FIGURE_STEM = ROOT / "output" / "figures" / "linear_soft_margin_grid_roc"
 
-# A half-log10 grid covers strong through weak regularization while keeping the
-# smallest reported value distinguishable at the requested two decimals.
+# Prespecified primary grid. A separate boundary-sensitivity analysis extends
+# this range after model selection without silently redefining the protocol.
 C_GRID = 10.0 ** np.arange(-2.0, 2.01, 0.5)
 RANDOM_STATE = 0
 
@@ -98,7 +98,7 @@ def nested_grid_search(
             {"svc__C": C_GRID},
             scoring="roc_auc",
             cv=inner_cv,
-            n_jobs=-1,
+            n_jobs=1,
             refit=True,
             return_train_score=False,
         )
@@ -144,7 +144,7 @@ def fit_full_grid(
         {"svc__C": C_GRID},
         scoring="roc_auc",
         cv=cv,
-        n_jobs=-1,
+        n_jobs=1,
         refit=True,
         return_train_score=True,
     )
@@ -303,6 +303,10 @@ def save_latex_tables(
             f"{float(row.best_C_full_precision):.2f} & "
             f"{row.inner_best_mean_AUROC:.2f} & {row.outer_test_AUROC:.2f} \\\\"
         )
+    fold_rows.append(
+        f"Mean & --- & --- & --- & {nested['inner_best_mean_AUROC'].mean():.3f} & "
+        f"{nested['outer_test_AUROC'].mean():.3f} \\\\"
+    )
     fold_table = "\n".join(
         [
             r"\begin{tabular}{rrrrrr}",

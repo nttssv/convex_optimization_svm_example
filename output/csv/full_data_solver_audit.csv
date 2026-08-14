@@ -1,0 +1,2 @@
+n_observations,n_features,n_decision_variables,n_margin_constraints,solver,solver_status_code,model_status,primal_parameters_returned,primal_objective,solver_message
+114,10,11,114,SciPy HiGHS,2,Infeasible,No,Not defined,The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is Infeasible)

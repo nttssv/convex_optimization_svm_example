@@ -279,13 +279,10 @@ def save_outputs(result: dict[str, object]) -> None:
     ax_values.set_title("(a) Equal points in the two convex hulls")
     ax_values.grid(axis="y", alpha=0.2)
     ax_values.legend(fontsize=8.5, loc="upper right")
-    residual = float(result["hull_residual"])
-    exponent = int(np.floor(np.log10(residual)))
-    mantissa = residual / (10.0**exponent)
     ax_values.text(
         0.02,
         0.03,
-        rf"maximum coordinate difference $={mantissa:.2f}\times10^{{{exponent}}}$",
+        r"maximum coordinate difference $<10^{-15}$ (machine precision)",
         transform=ax_values.transAxes,
         fontsize=8.5,
         bbox={"boxstyle": "round,pad=0.25", "facecolor": "white", "edgecolor": "#D1D5DB"},

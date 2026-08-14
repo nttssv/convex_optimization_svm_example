@@ -9,7 +9,9 @@ the hinge-loss kink.
 
 Writes:
     output/csv/primal_optimizer_comparison.csv
+    output/csv/primal_optimizer_robustness.csv
     output/tables/primal_optimizer_comparison_table.tex
+    output/tables/primal_optimizer_robustness_table.tex
     output/figures/primal_optimizer_comparison.{png,pdf}
 """
 from __future__ import annotations
@@ -36,7 +38,9 @@ _pubstyle.apply()
 ROOT = Path(__file__).resolve().parents[1]
 DATA_PATH = ROOT / "data" / "cgh_pa_dataset.csv"
 CSV_PATH = ROOT / "output" / "csv" / "primal_optimizer_comparison.csv"
+ROBUST_CSV_PATH = ROOT / "output" / "csv" / "primal_optimizer_robustness.csv"
 TABLE_PATH = ROOT / "output" / "tables" / "primal_optimizer_comparison_table.tex"
+ROBUST_TABLE_PATH = ROOT / "output" / "tables" / "primal_optimizer_robustness_table.tex"
 SLIDE_TABLE_PATH = ROOT / "output" / "tables" / "primal_optimizer_slide_table.tex"
 FIGURE_STEM = ROOT / "output" / "figures" / "primal_optimizer_comparison"
 
@@ -45,6 +49,7 @@ EXPECTED_OBSERVATIONS = 114
 LAMBDA = 1.0 / (EXPECTED_OBSERVATIONS * SELECTED_C)
 STEPS = 50_000
 SEED = 2026
+EVALUATION_SEEDS = tuple(range(3000, 3010))
 STEP_OFFSET = 100
 ETA_SCALES = (0.25, 0.5, 1.0, 2.0)
 MOMENTA = (0.3, 0.5, 0.7, 0.9)
@@ -254,6 +259,43 @@ def main() -> None:
     CSV_PATH.parent.mkdir(parents=True, exist_ok=True)
     comparison.to_csv(CSV_PATH, index=False)
 
+    # Hyperparameters above are selected on one common tuning sequence. Their
+    # robustness is then evaluated on ten new common random-number sequences.
+    robust_rows: list[dict[str, object]] = []
+    for evaluation_seed in EVALUATION_SEEDS:
+        evaluation_samples = np.random.default_rng(evaluation_seed).integers(
+            0, len(labels), size=STEPS
+        )
+        for method, tuned in selected.items():
+            result = run_method(
+                method,
+                design,
+                labels,
+                evaluation_samples,
+                float(tuned["eta_scale"]),
+                float(tuned["beta"]),
+            )
+            averaged = result["average"]
+            raw_gaps = result["raw_objectives"] - optimum
+            five_steps = first_threshold(raw_gaps, 0.05 * optimum)
+            one_steps = first_threshold(raw_gaps, 0.01 * optimum)
+            robust_rows.append(
+                {
+                    "evaluation_seed": evaluation_seed,
+                    "method": method,
+                    "eta_scale": float(tuned["eta_scale"]),
+                    "beta": float(tuned["beta"]),
+                    "final_averaged_gap": float(result["average_objectives"][-1] - optimum),
+                    "steps_to_5pct": five_steps,
+                    "steps_to_1pct": one_steps,
+                    "averaged_iterate_AUROC": float(
+                        roc_auc_score(labels > 0, design @ averaged)
+                    ),
+                }
+            )
+    robustness = pd.DataFrame(robust_rows)
+    robustness.to_csv(ROBUST_CSV_PATH, index=False)
+
     table_rows = []
     for row in comparison.itertuples(index=False):
         method_label = {
@@ -268,7 +310,7 @@ def main() -> None:
             f"{display_steps(row.steps_to_5pct)} & "
             f"{display_steps(row.steps_to_1pct)} & "
             f"{row.averaged_iterate_AUROC:.3f} & "
-            f"{row.cosine_to_reference:.3f} \\\\"
+            f"{row.cosine_to_reference:.4f} \\\\"
         )
     table = "\n".join(
         [
@@ -284,6 +326,31 @@ def main() -> None:
     )
     TABLE_PATH.parent.mkdir(parents=True, exist_ok=True)
     TABLE_PATH.write_text(table, encoding="utf-8")
+
+    robust_lines = []
+    for method in selected:
+        subset = robustness.loc[robustness["method"].eq(method)]
+        gap_q = subset["final_averaged_gap"].quantile([0.25, 0.5, 0.75])
+        five_q = subset["steps_to_5pct"].dropna().quantile([0.25, 0.5, 0.75])
+        one_q = subset["steps_to_1pct"].dropna().quantile([0.25, 0.5, 0.75])
+        robust_lines.append(
+            f"{method} & {gap_q.loc[0.5]:.2e} [{gap_q.loc[0.25]:.2e}, {gap_q.loc[0.75]:.2e}] & "
+            f"{five_q.loc[0.5]:.0f} [{five_q.loc[0.25]:.0f}, {five_q.loc[0.75]:.0f}] & "
+            f"{one_q.loc[0.5]:.0f} [{one_q.loc[0.25]:.0f}, {one_q.loc[0.75]:.0f}] \\\\"
+        )
+    robust_table = "\n".join(
+        [
+            r"\begin{tabular}{lrrr}",
+            r"\toprule",
+            r"Method & Final gap, median [IQR] & 5\% steps, median [IQR] & 1\% steps, median [IQR] \\",
+            r"\midrule",
+            *robust_lines,
+            r"\bottomrule",
+            r"\end{tabular}",
+            "",
+        ]
+    )
+    ROBUST_TABLE_PATH.write_text(robust_table, encoding="utf-8")
 
     slide_rows = []
     for row in comparison.itertuples(index=False):
@@ -348,6 +415,12 @@ def main() -> None:
     print(f"Selected C: {SELECTED_C:.6g}  lambda=1/(mC): {LAMBDA:.12f}")
     print(f"Reference normalized objective: {optimum:.12f}")
     print(comparison.to_string(index=False))
+    print("\nTen-sequence robustness summary")
+    print(
+        robustness.groupby("method")[["final_averaged_gap", "steps_to_5pct", "steps_to_1pct"]]
+        .median()
+        .to_string()
+    )
 
 
 if __name__ == "__main__":

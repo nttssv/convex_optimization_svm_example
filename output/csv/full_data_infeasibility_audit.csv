@@ -1,0 +1,6 @@
+metric,full_precision_value,display_value
+sum_lambda,1,1.00
+upa_lambda_mass,0.5,0.50
+bpa_lambda_mass,0.5,0.50
+max_abs_U_transpose_lambda,2.4980018054066e-16,2.50e-16
+max_convex_hull_coordinate_difference,6.66133814775094e-16,6.66e-16

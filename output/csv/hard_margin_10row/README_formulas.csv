@@ -1,0 +1,10 @@
+concept,formula,interpretation
+Parameter vector,"theta = [w1,...,w10,b]^T",The 11 values optimized in the primal
+Signed row,"u_i = t_i[x_i1,...,x_i10,1]^T",One row of U
+Score,s_i = w^T x_i + b,Positive predicts UPA; negative predicts BPA
+Signed margin,u_i^T theta = t_i s_i,"A scalar, not a vector"
+Hard-margin rule,u_i^T theta >= 1,Equivalent to g_i(theta) <= 0
+Constraint function,g_i(theta) = 1-u_i^T theta,Satisfied when <= 0
+Objective,phi(theta) = 0.5||w||^2,b is excluded
+First derivative,"grad phi = [w,0]^T",Shown in 05_theta_gradient_hessian.csv
+Second derivative,"Hessian phi = diag(I_10,0)",Positive semidefinite

@@ -1,0 +1,7 @@
+analysis_instance,training_n,held_out_n,hard_margin_feasible,model_fitted,roc_scores_available,auroc
+Full cohort,114,-,No,No,No,N/A
+CV fold 1,91,23,No,No,No,N/A
+CV fold 2,91,23,No,No,No,N/A
+CV fold 3,91,23,No,No,No,N/A
+CV fold 4,91,23,No,No,No,N/A
+CV fold 5,92,22,No,No,No,N/A

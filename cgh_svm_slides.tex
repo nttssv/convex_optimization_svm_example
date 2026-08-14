@@ -46,7 +46,7 @@
 \newcommand{\lecref}[1]{{\hfill\tiny\color{softgray}\textit{Lecture ref: #1}\par}\vspace{-0.4em}}
 
 % ---- Title metadata ----
-\title{Optimization-Based Clinical Decision Support for Curable Hypertension}
+\title{Optimization Study of SVM Classification in a Synthetic PA Cohort}
 \subtitle{SVMs: Hard-Margin Feasibility, Soft Margins, and Kernel Validation}
 \author{Nguyen Thanh Tung - 1011011 \and Duong Van Khoa - 1010689}
 \institute{Optimization for Data Science Project \\ Singapore University of Technology and Design}
@@ -106,7 +106,7 @@
 \end{frame}
 
 % ---------- Problem ----------
-\begin{frame}{The clinical problem}
+\begin{frame}{The motivating classification problem}
   \begin{columns}[T]
     \begin{column}{0.58\textwidth}
       \textbf{Primary aldosteronism (PA)} is a common, \emph{curable} cause of high blood pressure.
@@ -116,7 +116,8 @@
         \item \textcolor{BPAorange}{\textbf{Bilateral (BPA)}}: both glands --- managed with \emph{medication}.
       \end{itemize}
       \vspace{0.6em}
-      Getting the subtype right changes the treatment. Can an optimization model separate the two from routine measurements?
+      Getting the subtype right changes treatment. Here we study the optimization
+      workflow on synthetic data; this is not evidence of clinical utility.
     \end{column}
     \begin{column}{0.40\textwidth}
       \begin{block}{The dataset}
@@ -124,7 +125,7 @@
         \begin{itemize}
           \item 114 synthetic patients
           \item 56 UPA \; / \; 58 BPA
-          \item 10 continuous predictors\\{\footnotesize (PAC, PRA, potassium, tumor size, steroids, BP, \ldots)}
+          \item 10 numerical predictors\\{\footnotesize (PAC, PRA, potassium, tumor size, steroids, BP, \ldots)}
         \end{itemize}
       \end{block}
     \end{column}
@@ -303,6 +304,7 @@
 
 % ---------- 2c convex hull ----------
 \begin{frame}{The convex hulls explain the infeasibility}
+  \small
   \begin{columns}[T]
     \begin{column}{0.42\textwidth}
       \small
@@ -310,7 +312,7 @@
       \[
         \textstyle\sum_i \beta_i^{+} x_i = \sum_i \beta_i^{-} x_i,
       \]
-      matching to $6.66\times10^{-16}$ (machine zero).
+      matching to $<10^{-15}$ (machine precision).
       \begin{itemize}
         \item A shared point $\Rightarrow$ no hyperplane separates the classes.
         \item This gives a geometric interpretation of the solver and Farkas results.
@@ -318,7 +320,7 @@
     \end{column}
     \begin{column}{0.58\textwidth}
       \centering
-      \includegraphics[width=\textwidth]{output/figures/convex_hull_overlap_2d.pdf}\\
+      \includegraphics[width=\textwidth,height=0.52\textheight,keepaspectratio]{output/figures/convex_hull_overlap_2d.pdf}\\
       {\footnotesize The synthetic cohort in a 2-D projection. The exact certificate is computed in the full feature space.}
     \end{column}
   \end{columns}
@@ -345,7 +347,8 @@
     \begin{column}{0.54\textwidth}
       \centering
       \includegraphics[width=\textwidth]{output/figures/linear_soft_margin_grid_roc.pdf}\\
-      {\footnotesize (a) validation AUROC vs $C$; (b) nested out-of-fold ROC, \textbf{AUROC 0.95}.}
+      {\footnotesize (a) validation AUROC vs $C$; (b) nested out-of-fold ROC,
+      seed-zero AUROC 0.95; 20-seed mean 0.94.}
     \end{column}
   \end{columns}
 \end{frame}
@@ -367,11 +370,11 @@
     \end{column}
     \begin{column}{0.60\textwidth}
       \centering
-      \includegraphics[width=\textwidth]{output/figures/fig_step3_c_grid.pdf}\\
+      \includegraphics[width=\textwidth,height=0.52\textheight,keepaspectratio]{output/figures/fig_step3_c_grid.pdf}\\
       {\footnotesize Mean validation vs training AUROC across the $C$ grid; band is $\pm1$ SD over folds. The selected $C=0.01$ is circled.}
     \end{column}
   \end{columns}
-  \take{The most strongly regularized candidate, $C=0.01$, gives the best validation AUROC.}
+  \take{Within the prespecified grid, $C=0.01$ gives the best validation AUROC.}
 \end{frame}
 
 % ---------- 3b Pareto ----------
@@ -388,7 +391,7 @@
     \end{column}
     \begin{column}{0.60\textwidth}
       \centering
-      \includegraphics[width=\textwidth]{output/figures/fig_step3_pareto.pdf}\\
+      \includegraphics[width=\textwidth,height=0.53\textheight,keepaspectratio]{output/figures/fig_step3_pareto.pdf}\\
       {\footnotesize Color shows $\log_{10}C$; the star marks the selected model.}
     \end{column}
   \end{columns}
@@ -445,7 +448,7 @@
       \[
         P(w,b)=\frac1m\sum_i\ell_i(w,b)
         +\frac{\lambda}{2}\lVert w\rVert^2,
-        \qquad \boxed{\lambda=\frac1{mC}}.
+        \quad \lambda=\frac1{mC}.
       \]
       A stochastic method can therefore sample one observation and use its subgradient at each step.
     \end{column}
@@ -468,7 +471,7 @@
     \vspace{0.1em}
     \includegraphics[width=0.62\textwidth,height=0.22\textheight,keepaspectratio]{output/figures/primal_optimizer_comparison.pdf}
   \end{center}
-  \take{The hinge loss is nonsmooth, so smooth acceleration guarantees do not apply. Plain SSG is simplest and at least as fast in this run.}
+  \take{Across ten new sampling sequences, momentum has no robust advantage; smooth acceleration guarantees do not apply to hinge loss.}
 \end{frame}
 
 % ---------- RBF derivation ----------
@@ -508,21 +511,23 @@
 
 % ---------- RBF compare ----------
 \begin{frame}{RBF tuning favors the smoothest boundary}
+  \footnotesize
   \begin{columns}[T]
     \begin{column}{0.44\textwidth}
       The RBF kernel $K(x_i,x_j)=e^{-\gamma\lVert x_i-x_j\rVert^2}$ can bend the boundary.
-      \vspace{0.5em}
+      \vspace{0.2em}
       \begin{itemize}
         \item Nested cross-validation tested 81 $(C,\gamma)$ pairs.
-        \item The selected pair was $C=0.01,\ \gamma=0.001$, the \emph{smoothest} setting.
+        \item The selected pair was $C=0.01,\ \gamma=0.001$, the \emph{smoothest} prespecified setting.
+        \item An extended-grid audit continued toward smaller $C$ and inverse bandwidth $\gamma$: neither is precisely identified.
         \item Large $\gamma$ values fit the training data perfectly but perform near chance on validation data.
       \end{itemize}
-      \vspace{0.4em}
+      \vspace{0.1em}
       The selected RBF boundary is therefore close to linear.
     \end{column}
     \begin{column}{0.56\textwidth}
       \centering
-      \includegraphics[width=\textwidth]{output/figures/rbf_kernel_grid_heatmaps.pdf}\\
+      \includegraphics[width=\textwidth,height=0.50\textheight,keepaspectratio]{output/figures/rbf_kernel_grid_heatmaps.pdf}\\
       {\footnotesize Validation AUROC (left) vs train--validation gap (right). The star marks the selected smooth model; the top rows overfit.}
     \end{column}
   \end{columns}
@@ -530,7 +535,7 @@
 
 % ---------- Pareto frontier ----------
 \begin{frame}{More flexible RBF settings overfit}
-  \small
+  \footnotesize
   \begin{columns}[T]
     \begin{column}{0.40\textwidth}
       Each candidate is plotted by its train--validation gap and validation AUROC. Preferred models are near the \textbf{top-left}.
@@ -543,7 +548,7 @@
     \end{column}
     \begin{column}{0.60\textwidth}
       \centering
-      \includegraphics[width=\textwidth]{output/figures/svm_grid_pareto_frontier.pdf}\\
+      \includegraphics[width=\textwidth,height=0.52\textheight,keepaspectratio]{output/figures/svm_grid_pareto_frontier.pdf}\\
       {\footnotesize Stars mark Pareto-optimal grid settings. The additional RBF settings widen the overfitting range without improving the final nested comparison.}
     \end{column}
   \end{columns}
@@ -566,31 +571,33 @@
     \end{column}
     \begin{column}{0.60\textwidth}
       \centering
-      \includegraphics[width=0.94\textwidth,height=0.62\textheight,keepaspectratio]{output/figures/fig_step4_rbf_pc_boundary.pdf}\\
+      \includegraphics[width=0.94\textwidth,height=0.56\textheight,keepaspectratio]{output/figures/fig_step4_rbf_pc_boundary.pdf}\\
       {\footnotesize Compared with the linear boundary, the shape changes but the overlap remains.}
     \end{column}
   \end{columns}
-  \vspace{-0.3em}
+  \vspace{-0.5em}
   \take{A nonlinear boundary changes some local classifications but does not remove the underlying class overlap.}
 \end{frame}
 
 % ---------- Statistical verdict ----------
 \begin{frame}{Does the curved boundary actually help?}
+  \small
   \begin{columns}[T]
     \begin{column}{0.55\textwidth}
       \centering
-      \includegraphics[width=\textwidth]{output/figures/fig_stat_seed_robustness.png}
+      \includegraphics[width=\textwidth,height=0.51\textheight,keepaspectratio]{output/figures/fig_stat_seed_robustness.png}
     \end{column}
     \begin{column}{0.45\textwidth}
       We repeated nested cross-validation with 20 different fold assignments and compared
       mean outer-fold AUROC:
       \begin{itemize}
+        \item Mean AUROC: linear $0.9401$, RBF $0.9399$
         \item Difference $= +0.0002$
         \item Descriptive 95\% interval $[-0.022,+0.017]$
         \item Linear matched or beat RBF in 12 of 20 runs
       \end{itemize}
-      \vspace{0.4em}
-      \alert{The repeated runs reuse the same data: they assess split stability, not independent statistical significance.}
+      \vspace{-0.1em}
+      \alert{The same data are reused: this assesses split stability, not independent significance.}
     \end{column}
   \end{columns}
   \take{Across repeated splits, the RBF model provides no consistent improvement over the linear model.}
@@ -603,13 +610,14 @@
       \begin{block}{Results}
         \begin{itemize}
           \item The hard-margin problem is \textbf{infeasible}.
-          \item Linear soft-margin: \textbf{mean outer-fold AUROC 0.95}.
-          \item RBF kernel: mean outer-fold AUROC 0.94.
+          \item Linear soft-margin: \textbf{20-seed mean AUROC 0.94}.
+          \item RBF kernel: 20-seed mean AUROC 0.94.
+          \item L2-logistic baseline: 20-seed mean AUROC 0.94.
         \end{itemize}
         \vspace{0.3em}
         \textbf{The RBF kernel does not improve mean nested outer-fold performance.}
       \end{block}
-      With similar discrimination, the linear model is easier to tune and interpret.
+      With similar discrimination, the linear model is easier to tune and inspect.
     \end{column}
     \begin{column}{0.45\textwidth}
       \begin{block}{Why it matters}
@@ -624,19 +632,13 @@
   \end{columns}
 \end{frame}
 
-% ---------- Cheat-sheet backup ----------
-\begin{frame}{Summary of the analysis}
-  \centering
-  \includegraphics[height=0.86\textheight,keepaspectratio]{output/figures/fig_cheatsheet_ref.png}
-\end{frame}
-
 % ---------- Closing ----------
 \begin{frame}[plain]
   \vfill
   \centering
   {\LARGE\bfseries\color{UPAblue} Thank you}\\[0.6em]
   {\large Questions?}\\[1.4em]
-  {\footnotesize The analysis is fully reproducible from the code and synthetic dataset in the project repository.}
+  {\footnotesize The numerical analysis is reproducible from the code and synthetic dataset in the project repository.}
   \vfill
 \end{frame}
 

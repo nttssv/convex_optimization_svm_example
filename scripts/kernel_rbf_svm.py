@@ -36,6 +36,8 @@ CSV_DIR = ROOT / "output" / "csv"
 TABLE_DIR = ROOT / "output" / "tables"
 FIGURE_DIR = ROOT / "output" / "figures"
 
+# Prespecified primary grid. A separate boundary-sensitivity analysis extends
+# both lower bounds after model selection.
 C_GRID = 10.0 ** np.arange(-2.0, 2.01, 0.5)
 GAMMA_GRID = 10.0 ** np.arange(-3.0, 1.01, 0.5)
 RANDOM_STATE = 0
@@ -80,7 +82,7 @@ def nested_search(
             {"svc__C": C_GRID, "svc__gamma": GAMMA_GRID},
             scoring="roc_auc",
             cv=inner,
-            n_jobs=-1,
+            n_jobs=1,
             refit=True,
             return_train_score=True,
         )
@@ -136,7 +138,7 @@ def full_grid_search(
         {"svc__C": C_GRID, "svc__gamma": GAMMA_GRID},
         scoring="roc_auc",
         cv=cv,
-        n_jobs=-1,
+        n_jobs=1,
         refit=True,
         return_train_score=True,
     )
@@ -305,6 +307,11 @@ def save_tables(
             f"{row.inner_mean_train_AUROC:.2f} & {row.inner_mean_validation_AUROC:.2f} & "
             f"{row.outer_test_AUROC:.2f} \\\\"
         )
+    nested_rows.append(
+        f"Mean & --- & --- & {nested['inner_mean_train_AUROC'].mean():.3f} & "
+        f"{nested['inner_mean_validation_AUROC'].mean():.3f} & "
+        f"{nested['outer_test_AUROC'].mean():.3f} \\\\"
+    )
     nested_table = "\n".join(
         [
             r"\begin{tabular}{rrrrrr}", r"\toprule",
@@ -370,7 +377,7 @@ def save_grid_figure(grid: pd.DataFrame, best_c: float, best_gamma: float) -> No
         ax.set_xticks(np.arange(len(C_GRID)), [display_parameter(v) for v in C_GRID], rotation=45, ha="right")
         ax.set_yticks(np.arange(len(GAMMA_GRID)), [display_parameter(v) for v in GAMMA_GRID])
         ax.set_xlabel("Penalty $C$")
-        ax.set_ylabel(r"RBF width $\gamma$")
+        ax.set_ylabel(r"RBF parameter $\gamma$ (inverse bandwidth)")
     ax_auc.set_title("(a) Mean validation AUROC")
     ax_gap.set_title("(b) Train--validation AUROC gap")
     fig.colorbar(auc_image, ax=ax_auc, fraction=0.046, pad=0.03, format="%.2f")

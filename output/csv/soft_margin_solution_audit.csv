@@ -1,0 +1,16 @@
+metric,full_precision_value,display_value
+best_C,0.01,0.01
+full_grid_best_mean_validation_AUROC,0.945179063360882,0.95
+number_of_support_vectors,82,82
+number_with_positive_slack,77,77
+sum_slack,46.8890445371598,46.89
+weight_squared_norm,0.325963258523657,0.33
+intercept,-0.0176281435202278,-0.02
+primal_objective,0.631872074633427,0.63
+dual_objective,0.631872074148198,0.63
+primal_dual_gap,4.85228857094455e-10,4.85e-10
+dual_equality_residual,2.77555756156289e-17,2.78e-17
+weight_reconstruction_residual,0,0.00e+00
+margin_complementarity_residual,2.34766145378656e-10,2.35e-10
+slack_complementarity_residual,8.56918213771708e-11,8.57e-11
+minimum_primal_constraint_residual,0,0.00e+00

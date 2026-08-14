@@ -23,6 +23,17 @@ FEATURES = [
     "Age",
 ]
 LOG_FEATURES = {"PAC", "PRA", "18-OHF", "18-oxoF"}
+CALIBRATION_TARGETS = {
+    "Age": 48.0,
+    "Systolic BP": 141.0,
+    "DDD": 2.39,
+    "Potassium": 3.59,
+    "PAC": 25.1,
+    "PRA": 0.71,
+    "Tumor size": 14.0,
+    "18-OHF": 1319.0,
+    "18-oxoF": 88.9,
+}
 
 
 def fmt_signed(value: float) -> str:
@@ -82,12 +93,33 @@ def build_by_class(df: pd.DataFrame) -> str:
     )
 
 
+def build_target_audit(df: pd.DataFrame) -> str:
+    rows = [
+        f"{feature} & {target:.2f} & {pd.to_numeric(df[feature]).mean():.2f} & "
+        f"{pd.to_numeric(df[feature]).mean() - target:+.2f} \\\\"
+        for feature, target in CALIBRATION_TARGETS.items()
+    ]
+    return "\n".join(
+        [
+            r"\begin{tabular}{lrrr}",
+            r"\toprule",
+            r"Predictor & Calibration target & Realized mean & Difference \\",
+            r"\midrule",
+            *rows,
+            r"\bottomrule",
+            r"\end{tabular}",
+            "",
+        ]
+    )
+
+
 def main() -> None:
     df = pd.read_csv(DATA)
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "descriptive_statistics_table.tex").write_text(build_overall(df), encoding="utf-8")
     (OUT / "descriptive_statistics_by_class_table.tex").write_text(build_by_class(df), encoding="utf-8")
-    print("Generated both descriptive-statistics table fragments.")
+    (OUT / "synthetic_target_audit_table.tex").write_text(build_target_audit(df), encoding="utf-8")
+    print("Generated descriptive-statistics and target-audit table fragments.")
 
 
 if __name__ == "__main__":
