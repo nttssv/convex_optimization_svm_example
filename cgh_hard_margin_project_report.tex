@@ -69,7 +69,7 @@ Singapore University of Technology and Design}
 
 \section{Problem Identification}
 
-Primary aldosteronism (PA) is an important cause of secondary hypertension. The clinically relevant subtype decision is whether PA is unilateral or bilateral. Unilateral PA can often be treated surgically, whereas bilateral PA is usually managed medically \cite{rossi2019}. The aim of this project is to formulate this binary classification problem as a maximum-margin optimization problem and to determine whether a linear hard-margin support vector machine (SVM) can be trained on the available project data.
+Primary aldosteronism (PA) is an important cause of secondary hypertension. The clinically relevant subtype decision is whether PA is unilateral or bilateral. Unilateral PA can often be treated surgically, whereas bilateral PA is usually managed medically \cite{rossi2019}. The aim of this project is to formulate this binary classification problem as a maximum-margin optimization problem, test whether a linear hard-margin support vector machine (SVM) is feasible on the available project data, and, if it is not, identify a validated soft-margin alternative.
 
 The analysis begins with a \emph{linear hard-margin} SVM to determine whether a
 perfect linear separator exists. That feasibility audit uses no slack
@@ -83,7 +83,7 @@ kernel comparison with explicit overfitting diagnostics.
 
 \section{Dataset and Feature Representation}
 
-The source report describes a cohort of 114 patients evaluated for PA at Changi General Hospital \cite{cghmidterm}. Patient-level clinical data were not available for this course project, so the numerical analysis uses a synthetic CGH-like cohort with 114 observations: 56 labelled unilateral PA (UPA) and 58 labelled bilateral PA (BPA). The synthetic data are used to test the optimization workflow and are not evidence of clinical performance.
+The source report describes a cohort of 114 patients evaluated for PA at Changi General Hospital \cite{cghmidterm}. Patient-level clinical data were not available for this course project, so the numerical analysis uses a synthetic CGH-like cohort with 114 observations: 56 labeled unilateral PA (UPA) and 58 labeled bilateral PA (BPA). The synthetic data are used to test the optimization workflow and are not evidence of clinical performance.
 
 Ten continuous predictors are used: plasma aldosterone concentration, plasma renin activity, potassium, tumor size, 18-hydroxycortisol, 18-oxocortisol, systolic blood pressure, diastolic blood pressure, antihypertensive burden, and age. Let $x_i\in\mathbb{R}^p$ denote the feature vector for observation $i$, with $p=10$, and let
 \begin{equation}
@@ -94,6 +94,32 @@ Ten continuous predictors are used: plasma aldosterone concentration, plasma ren
     \end{cases}
 \end{equation}
 The four positively skewed hormone measurements are log-transformed. Within each cross-validation split, medians, means, and standard deviations are estimated from the training fold only; these training-fold quantities are then used for imputation and standardization of the held-out fold.
+
+\subsection{Synthetic Data Generation and Scope}
+
+The synthetic cohort is generated reproducibly by
+\path{scripts/make_synthetic_dataset.py} with NumPy random seed
+$20260710$. The subtype label is drawn first, after which the ten continuous
+predictors are sampled conditionally on that label. Age, blood pressure,
+antihypertensive burden, potassium, and tumor size are generated from clipped
+Gaussian distributions; PAC, PRA, 18-OHF, and 18-oxoF are generated from
+log-normal distributions. Prespecified class-conditional shifts impose a
+clinically plausible simulated signal: UPA observations tend to have higher
+PAC, lower PRA and potassium, larger tumors, and higher hybrid-steroid values.
+The generated variables are then clipped to plausible ranges and rounded to
+the precision stored in the project CSV file. The realized sample contains 56
+UPA and 58 BPA observations.
+
+The generator was calibrated only to approximate selected marginal means from
+the source report. It does not reproduce patient-level records, a fitted
+multivariate covariance structure, or the full heterogeneity of a clinical
+population. Consequently, both separability and predictive performance partly
+reflect the prespecified simulation assumptions and must be interpreted only
+as demonstrations of the optimization workflow. A binary Sex variable is
+also generated for descriptive context but is excluded a priori from the SVM
+feature vector so that the analysis remains restricted to the ten continuous
+predictors listed above; the reported models are therefore not adjusted for
+sex.
 
 \section{Descriptive Statistics of the Predictors}
 \label{sec:descriptive}
@@ -118,7 +144,7 @@ four log-transformed hormone assays.}
 \end{table}
 
 The skew (log) column is the empirical justification for the log transformation. The six non-log transformed predictors are close to
-symmetric, with skewness between $-0.19$ and $0.22$, whereas the four remain
+symmetric, with skewness between $-0.19$ and $0.22$, whereas the four hormone
 assays are strongly right-skewed: $1.45$ for PAC, $1.75$ for PRA, $1.95$ for
 18-OHF, and $3.81$ for 18-oxoF. After the log transformation all four fall
 within $[-0.20,\,0.25]$. Only the four log-transformed hormones are transformed, and the
@@ -129,16 +155,20 @@ Table~\ref{tab:descriptive-class} splits each predictor by subtype and reports
 two complementary quantities: the standardized mean difference (Cohen's $d$)
 and the Welch t-statistic. They answer different questions. Cohen's $d$
 measures \emph{how large} the gap between the subtype means is, expressed in
-pooled standard deviations, and does not change with cohort size. The Welch
+pooled standard deviations, and does not mechanically increase with cohort
+size. The Welch
 statistic measures \emph{how precisely} that gap is resolved: it divides the
-same difference by its standard error, so it grows in proportion to
+same difference by its standard error, so, when the effect, variance, and
+class proportions remain fixed, its magnitude tends to grow in proportion to
 $\sqrt{m}$.
 
 \begin{table}[htbp]
 \centering
 \caption{Predictor distributions by PA subtype. Cohen's $d$ is the
 standardized mean difference (UPA minus BPA) using the pooled standard
-deviation; Welch $t$ is the same difference divided by its standard error.}
+deviation; Welch $t$ is the same difference divided by its standard error,
+and $p$ is the corresponding two-sided Welch-test p-value. These quantities
+are descriptive summaries of the synthetic cohort, not clinical inference.}
 \label{tab:descriptive-class}
 \small
 \input{output/tables/descriptive_statistics_by_class_table.tex}
@@ -386,11 +416,1070 @@ questions that are often confused: feasibility asks whether any separating
 hyperplane exists, whereas optimization selects the maximum-margin hyperplane
 only after existence has been established.
 
+Two worked numerical examples are provided in Appendix~\ref{app:worked-examples}. They illustrate feasible hard-margin primal--dual calculations without interrupting the full-cohort feasibility argument.
+
+\section{Hard-Margin Feasibility Audit and Certificate}
+
+\subsection{Full-Data Infeasibility Certificate}
+\label{sec:full-certificate}
+
+Three mutually reinforcing checks are used on the complete processed dataset,
+in the order direct solver status, algebraic Farkas certificate, and geometric
+convex-hull interpretation. Here
+$U\in\mathbb{R}^{114\times11}$ contains the ten standardized features and the
+intercept column.
+
+\paragraph{Homework-style direct solver verification.}
+The primal model supplied to a constrained solver is
+\begin{equation}
+\begin{aligned}
+\min_{w,b}\quad &\frac12\lVert w\rVert_2^2\\
+\text{subject to}\quad &U\theta\geq\mathbf{1}.
+\end{aligned}
+\end{equation}
+Before an objective can be minimized, the solver must find a point satisfying
+all 114 constraints. The implementation therefore first solves the equivalent
+feasibility model $\min_\theta 0$ subject to $-U\theta\leq-\mathbf{1}$; changing
+the objective cannot make an empty feasible set nonempty. The direct solver
+audit returned the result in Table~\ref{tab:direct-solver}.
+
+\begin{table}[htbp]
+\centering
+\caption{Direct full-data primal feasibility check.}
+\label{tab:direct-solver}
+\input{output/tables/full_data_solver_audit_table.tex}
+\end{table}
+
+Thus the correct statement is that the solver returns an \emph{infeasible
+status}; it does not return an ``infeasible solution.'' No primal solution
+exists for the solver to report. This is the direct computational verification
+used in the homework-style workflow.
+
+\paragraph{Independent certificate.}
+The solver status is then strengthened by a direct, independently checkable
+proof. Farkas' lemma states that the system
+$U\theta\geq\mathbf{1}$ is infeasible if there is a vector
+$\lambda\in\mathbb{R}^{114}$ satisfying
+\begin{equation}
+    \lambda\geq0,\qquad
+    U^\top\lambda=0,\qquad
+    \mathbf{1}^\top\lambda=1.
+\end{equation}
+The auxiliary linear program for this certificate returned twelve nonzero
+weights, shown in Table~\ref{tab:farkas-certificate}; the other 102 weights
+are zero. Displayed weights use two decimal places as requested. Every check
+uses the unrounded values in the companion CSV file, which also contains a
+separate two-decimal display column; the displayed values alone should not be
+used to recompute the certificate.
+
+\begin{table}[htbp]
+\centering
+\caption{Nonzero weights in the full-data Farkas infeasibility certificate.}
+\label{tab:farkas-certificate}
+\scriptsize
+\input{output/tables/farkas_certificate_table.tex}
+\end{table}
+
+The full-precision numerical audit gives
+\begin{equation}
+\begin{aligned}
+\mathbf{1}^\top\lambda&=1.00,\\
+\sum_{i:t_i=+1}\lambda_i&=0.50,\\
+\sum_{i:t_i=-1}\lambda_i&=0.50,\\
+\lVert U^\top\lambda\rVert_\infty&=2.50\times10^{-16}.
+\end{aligned}
+\end{equation}
+The first three quantities are displayed to two decimal places. The final
+residual is retained in scientific notation because rounding it to $0.00$
+would hide the numerical accuracy of the certificate. Now suppose, for
+contradiction, that a hard-margin parameter $\theta$ satisfied
+$U\theta\geq\mathbf{1}$. Nonnegativity of $\lambda$ would imply
+\begin{equation}
+\underbrace{(U^\top\lambda)^\top\theta}_{0}
+=\lambda^\top U\theta
+\geq\lambda^\top\mathbf{1}
+=1,
+\end{equation}
+which is the contradiction $0\geq1$. Therefore the complete hard-margin
+constraint system has no feasible solution. In fact, the twelve observations
+in Table~\ref{tab:farkas-certificate} already provide a sufficient
+infeasible subsystem.
+
+The same certificate has a geometric interpretation. Because the intercept
+component of $U^\top\lambda=0$ gives equal class masses of $0.5$, define
+$\beta_i^+=2\lambda_i$ for UPA and $\beta_i^-=2\lambda_i$ for BPA. Each set of
+coefficients is nonnegative and sums to one, while the feature components of
+$U^\top\lambda=0$ give
+\begin{equation}
+    \sum_{i:t_i=+1}\beta_i^+x_i
+    =\sum_{i:t_i=-1}\beta_i^-x_i.
+\end{equation}
+Thus the standardized UPA and BPA convex hulls contain the same point. Their
+largest coordinate difference is only $6.66\times10^{-16}$, as illustrated
+in Figure~\ref{fig:full-certificate}. Intersecting convex hulls cannot be
+strictly separated by a hyperplane.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.98\textwidth]{output/figures/full_data_infeasibility_certificate.pdf}
+    \caption{Full-data infeasibility certificate. Panel (a) shows the identical ten-dimensional point obtained as a convex combination of UPA observations and as a convex combination of BPA observations; the plot compares coordinates directly and is not a two-dimensional projection. Panel (b) shows the twelve nonzero Farkas weights.}
+    \label{fig:full-certificate}
+\end{figure}
+
+Two complementary illustrations make the certificate intuitive.
+Figure~\ref{fig:farkas-schematic} contrasts the two systems of Farkas' lemma:
+either a separating hyperplane exists (System~A), or a nonnegative combination
+of the constraints proves a contradiction $0\ge1$ (System~B), never both.
+Figure~\ref{fig:hull-overlap} provides a two-dimensional visual intuition by
+projecting the project data onto its first two principal components. The
+projected convex hulls overlap, which is consistent with---but does not by
+itself prove---nonseparability in the original ten-dimensional space. The
+proof is the full-dimensional Farkas certificate above. The
+theory-of-the-alternative structure behind this argument
+follows the treatment of duality and first-order optimality in the course
+lectures \cite{lec-duality,lec-firstorder}.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{output/figures/farkas_lemma_schematic.pdf}
+    \caption{Farkas' lemma as a theorem of the alternative. System~A (left): the
+    classes are separable, so a hyperplane exists. System~B (right): the classes
+    overlap, so a nonnegative weighting of the points certifies infeasibility
+    ($0\ge1$). Exactly one system is solvable; for the project data it is
+    System~B.}
+    \label{fig:farkas-schematic}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.72\textwidth]{output/figures/convex_hull_overlap_2d.pdf}
+    \caption{Convex hulls of the UPA and BPA subtypes in the first two principal
+    components of the standardized data. Their overlap illustrates the class
+    mixing visible in this projection but does not establish nonseparability in
+    ten dimensions. The full-dimensional certificate in
+    Figure~\ref{fig:full-certificate} provides that proof.}
+    \label{fig:hull-overlap}
+\end{figure}
+
+Consequently, for the current preprocessed project data,
+\begin{equation}
+    \boxed{\text{the UPA and BPA classes are not linearly separable}.}
+\end{equation}
+The certificate, CSV output, numerical checks, and figure are reproduced by
+\path{scripts/build_full_data_infeasibility_certificate.py}. The script writes
+four machine-readable audit files under \path{output/csv/}: the direct solver
+status, sparse Farkas vector, two convex-hull representations, and numerical
+residual checks. The two tables above are generated from the same Python
+results and then included in this PDF.
+
+\subsection{Cross-Validation Feasibility Results and ROC Rule}
+
+The feasibility audit uses stratified five-fold cross-validation with shuffling and random seed zero. All preprocessing operations are fitted inside the training fold. In each fold, the hard-margin classifier is fitted only if the training constraints are feasible. Held-out decision scores would then be pooled to construct the ROC curve, and AUROC would summarize discrimination across score thresholds.
+
+\begin{table}[htbp]
+\centering
+\caption{Hard-margin feasibility results for the full synthetic cohort and
+the five cross-validation training folds. ``No'' means that no parameter pair
+$(w,b)$ satisfies every unit-margin constraint in that row's training set.}
+\label{tab:feasibility}
+\input{output/tables/linear_hard_margin_feasibility_table.tex}
+\end{table}
+
+The result is unambiguous: the full-data problem is infeasible, and all five
+training-fold problems are also infeasible. Thus linear separation is not
+available in any evaluated hard-margin fit; there are no valid hard-margin
+parameters with which to score the corresponding held-out observations.
+
+This ordering is important. ROC analysis requires a fitted scoring function for every held-out observation. If a training fold is infeasible, there are no valid hard-margin parameters for that fold and therefore no legitimate out-of-fold scores. Reporting an ROC curve in that situation would require silently changing either the model or the data.
+
+The worked subsystem in Section~\ref{sec:worked-excel} is not a cross-validation split and is not used to generate ROC results.
+
+The hard-margin question is therefore closed: the complete cohort and every
+training fold are infeasible, so the model cannot be fitted or evaluated by
+ROC analysis. Section~\ref{sec:soft-margin} now relaxes the unit-margin
+constraints explicitly by introducing penalized slack variables.
+
+\section{Linear Soft-Margin SVM}
+\label{sec:soft-margin}
+
+\subsection{Why Slack Variables Are Needed}
+
+The preceding hard-margin audit, including the certificate in
+Section~\ref{sec:full-certificate}, establishes that no $(w,b)$ can satisfy
+all 114 unit-margin inequalities simultaneously. The soft-margin model changes the
+assumption rather than attempting to optimize over an empty set. For each
+observation it introduces a slack variable $\xi_i\geq0$ that measures the
+shortfall from the desired signed functional margin of one:
+\begin{equation}
+    \xi_i=\max\{0,1-t_i(w^\top x_i+b)\}.
+\end{equation}
+When $\xi_i=0$, the observation lies on or outside its supporting margin. If
+$0<\xi_i\leq1$, it lies inside the margin but remains on the correct side of
+the decision boundary. If $\xi_i>1$, its signed score is negative and it is
+misclassified. This interpretation directly connects the optimization
+variables to the geometry of overlapping UPA and BPA observations.
+
+\subsection{Soft-Margin Primal Problem}
+
+The linear soft-margin primal problem is \cite{cortes1995,lec-statlearn}
+\begin{equation}
+\begin{aligned}
+\min_{w,b,\xi}\quad
+&p(w,b,\xi)=\frac12\lVert w\rVert_2^2+C\sum_{i=1}^{m}\xi_i\\
+\text{subject to}\quad
+&t_i(w^\top x_i+b)\geq1-\xi_i,\qquad i=1,\ldots,m,\\
+&\xi_i\geq0,\qquad i=1,\ldots,m.
+\end{aligned}
+\end{equation}
+The first term favors a wide margin, while the second penalizes total margin
+violation. The constant $C>0$ controls their trade-off. Unlike the hard-margin
+problem, this primal is always feasible: $w=0$, $b=0$, and $\xi_i=1$ satisfy
+every constraint. Eliminating the slack variables gives the equivalent
+unconstrained hinge-loss form
+\begin{equation}
+    \min_{w,b}\quad
+    \frac12\lVert w\rVert_2^2
+    +C\sum_{i=1}^{m}\max\{0,1-t_i(w^\top x_i+b)\}.
+\end{equation}
+The constrained form is retained below because it makes the primal--dual
+relationship and the role of $C$ explicit.
+
+\subsection{Lagrangian and KKT Conditions}
+
+Introduce $\alpha_i\geq0$ for
+$1-\xi_i-t_i(w^\top x_i+b)\leq0$ and $\mu_i\geq0$ for
+$-\xi_i\leq0$. The Lagrangian is
+\begin{equation}
+\begin{aligned}
+\mathcal{L}(w,b,\xi,\alpha,\mu)
+={}&\frac12\lVert w\rVert_2^2+C\sum_i\xi_i\\
+&+\sum_i\alpha_i[1-\xi_i-t_i(w^\top x_i+b)]
+-\sum_i\mu_i\xi_i.
+\end{aligned}
+\end{equation}
+Stationarity with respect to the primal variables gives
+\begin{equation}
+    w=\sum_i\alpha_i t_i x_i,\qquad
+    \sum_i\alpha_i t_i=0,\qquad
+    C-\alpha_i-\mu_i=0.
+\end{equation}
+Because $\mu_i\geq0$, the final equality produces the upper bound
+$0\leq\alpha_i\leq C$. The complete KKT system additionally requires primal
+feasibility, dual feasibility, and complementary slackness:
+\begin{equation}
+\begin{aligned}
+&t_i(w^\top x_i+b)-1+\xi_i\geq0,\qquad \xi_i\geq0,\\
+&0\leq\alpha_i\leq C,\\
+&\alpha_i[1-\xi_i-t_i(w^\top x_i+b)]=0,\\
+&(C-\alpha_i)\xi_i=0.
+\end{aligned}
+\end{equation}
+These conditions are necessary and sufficient because the primal objective is
+convex, its constraints are affine, and strict feasibility is obtained by
+choosing sufficiently large positive slacks. They also explain the support
+vectors. An observation with $\alpha_i=0$ does not determine $w$ and lies
+outside the margin. A point with $0<\alpha_i<C$ lies exactly on a supporting
+margin. A point with $\alpha_i=C$ may lie inside the margin or be
+misclassified, so it receives the largest multiplier permitted by the chosen
+penalty.
+
+\subsection{Soft-Margin Dual Problem}
+
+Minimizing the Lagrangian over $w$, $b$, and $\xi$ using the stationarity
+conditions yields
+\begin{equation}
+\begin{aligned}
+\max_{\alpha}\quad
+&d(\alpha)=\sum_{i=1}^{m}\alpha_i
+-\frac12\sum_{i=1}^{m}\sum_{j=1}^{m}
+\alpha_i\alpha_jt_it_jx_i^\top x_j\\
+\text{subject to}\quad
+&0\leq\alpha_i\leq C,\qquad
+\sum_{i=1}^{m}\alpha_it_i=0.
+\end{aligned}
+\end{equation}
+The objective has the same form as the hard-margin dual, but the new box
+constraint $\alpha_i\leq C$ is essential. It prevents any single observation
+from exerting unlimited pressure on the separating hyperplane. Since the
+soft-margin primal is strictly feasible, strong duality holds and the optimal
+primal and dual values are equal up to numerical solver tolerance.
+
+\subsection{Selecting the Penalty Parameter by Grid Search}
+
+A small $C$ places greater emphasis on a wide, strongly regularized margin and
+accepts more slack. A large $C$ penalizes violations more severely and moves
+toward hard-margin behavior, which can increase sensitivity to overlapping
+observations. Because neither extreme is known in advance, $C$ is selected
+from the half-logarithmic grid
+\begin{equation}
+\mathcal{C}=\{10^{k/2}:k=-4,-3,\ldots,4\}.
+\end{equation}
+Displayed to two decimal places, these values are
+\begin{equation}
+0.01,\ 0.03,\ 0.10,\ 0.32,\ 1.00,\ 3.16,\ 10.00,\ 31.62,\ 100.00.
+\end{equation}
+Each candidate is evaluated by mean five-fold stratified validation AUROC.
+The log transformation, median imputation, standardization, and linear SVM
+are placed in one pipeline, so every preprocessing parameter is estimated
+from the corresponding training fold only.
+
+There are therefore two distinct optimization levels. For a fixed candidate
+$C$ and training fold $r$, the SMO solver first finds the optimal model for
+that value alone:
+\begin{equation}
+ (w^*_{C,r},b^*_{C,r},\xi^*_{C,r})
+ =\arg\min_{w,b,\xi}
+ \left\{\frac12\lVert w\rVert^2+C\sum_{i\in\mathcal T_r}\xi_i\right\}
+ \quad\text{subject to the fold's soft-margin constraints.}
+\end{equation}
+That optimized model scores validation fold $\mathcal V_r$. Grid search then
+selects the hyperparameter by
+\begin{equation}
+ \widehat C
+ =\arg\max_{C\in\mathcal C}\frac15\sum_{r=1}^{5}
+ \operatorname{AUROC}\!\left(\mathcal V_r;w^*_{C,r},b^*_{C,r}\right).
+\end{equation}
+Thus every candidate $C$ has its own fully optimized coefficients in every
+fold; $C$ is compared using held-out AUROC, not by comparing training
+objective values across different penalties. After $\widehat C$ is chosen,
+the pipeline solves once more at that fixed value using all observations
+available to that stage.
+
+Nested cross-validation separates model selection from performance
+estimation. In each of five outer folds, an independent five-fold inner grid
+search chooses $C$ using only the outer training observations. The selected
+model then scores the untouched outer test fold. Table~\ref{tab:soft-nested}
+shows that all five inner searches selected $C=0.01$.
+
+\begin{table}[htbp]
+\centering
+\caption{Nested cross-validation for soft-margin penalty selection. AUROC values and $C$ are displayed to two decimal places.}
+\label{tab:soft-nested}
+\small
+\input{output/tables/soft_margin_nested_cv_table.tex}
+\end{table}
+
+\subsection{Soft-Margin Solution on the Project Dataset}
+
+The final full-data grid search also selected $C=0.01$, with mean inner-fold
+validation AUROC $0.95$. Figure~\ref{fig:soft-grid-roc} shows both the validation
+curve over $C$ and the nested out-of-fold ROC curve. Across the five untouched
+outer folds, the primary estimate is mean fold-wise AUROC $0.95$; pooling all
+out-of-fold scores gives AUROC $0.95$, with accuracy, sensitivity, and
+specificity all approximately $0.86$ at decision threshold zero. These
+numbers are generated by the explicit linear soft-margin primal--dual model
+defined in this section.
+
+The fitted standardized-space coefficients in
+Table~\ref{tab:soft-coefficients} give the final linear scoring function.
+Their signs describe the direction of the score after the stated preprocessing
+but should not be interpreted as causal clinical effects.
+
+\begin{table}[H]
+\centering
+\caption{Final standardized-space soft-margin coefficients at $C=0.01$.}
+\label{tab:soft-coefficients}
+\input{output/tables/soft_margin_coefficients_table.tex}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.98\textwidth]{output/figures/linear_soft_margin_grid_roc.pdf}
+    \caption{Soft-margin model selection and validation. Panel (a) reports mean five-fold validation AUROC with one standard deviation across folds for every candidate $C$; the dashed line marks the selected value. Panel (b) reports the nested out-of-fold ROC obtained when $C$ is selected inside each outer training fold.}
+    \label{fig:soft-grid-roc}
+\end{figure}
+
+The full-data solution contains 82 support vectors and 77 observations with
+positive slack, with $\sum_i\xi_i=46.89$. Substitution into the primal gives
+\begin{equation}
+\begin{aligned}
+p^*
+&=\frac12\lVert w\rVert_2^2+C\sum_i\xi_i\\
+&=\frac12(0.33)+(0.01)(46.89)\\
+&\approx0.63.
+\end{aligned}
+\end{equation}
+The dual calculation gives $d^*\approx0.63$, and the full-precision
+primal--dual gap is $4.85\times10^{-10}$. The remaining numerical checks are
+$|\sum_i\alpha_i t_i|=2.78\times10^{-17}$ and a zero weight-reconstruction
+residual at stored precision. The two maximum complementary-slackness
+residuals are $2.35\times10^{-10}$ and $8.57\times10^{-11}$, confirming the
+KKT conditions to solver tolerance. Table~\ref{tab:soft-summary} summarizes
+the model-selection and optimization results.
+
+\begin{table}[H]
+\centering
+\caption{Soft-margin model-selection, validation, and optimization summary.}
+\label{tab:soft-summary}
+\input{output/tables/soft_margin_summary_table.tex}
+\end{table}
+
+All full-precision grid-search results, nested predictions, coefficients,
+support-vector multipliers, slacks, and primal--dual checks are written under
+\path{output/csv/} by \path{scripts/linear_soft_margin_svm.py}. Tables in this
+section and both panels of Figure~\ref{fig:soft-grid-roc} are generated from
+those Python outputs.
+
+The penalty $C$ is selected by the grid search of Figure~\ref{fig:c-grid}:
+validation AUROC is highest at the strongly regularized end and the
+training--validation gap is smallest there, so $C=0.01$ is preferred.
+Figure~\ref{fig:soft-pareto} recasts the same grid as a Pareto trade-off
+between validation performance and overfitting, on which $C=0.01$ is the single
+non-dominated point. Figure~\ref{fig:soft-boundary} shows the resulting
+soft-margin boundary in the first two principal components: the separating line
+passes straight through the region where the two subtypes overlap, accepting
+the misclassifications it cannot avoid and charging for them through the slack
+variables.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{output/figures/fig_step3_c_grid.pdf}
+    \caption{Grid search for the penalty $C$. Mean five-fold validation AUROC
+    (with training AUROC for reference) across the $C$ grid; the selected value
+    $C=0.01$ is circled. Stronger regularization generalizes best on this
+    overlapping data.}
+    \label{fig:c-grid}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{output/figures/fig_step3_pareto.pdf}
+    \caption{The same grid as a Pareto trade-off between mean validation AUROC
+    (higher is better) and the train--validation AUROC gap (lower is better).
+    Points are colored by $\log_{10}C$; $C=0.01$ (star) is the single
+    Pareto-optimal setting.}
+    \label{fig:soft-pareto}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.72\textwidth]{output/figures/fig_step3c_pc_boundary.pdf}
+    \caption{Fitted soft-margin decision boundary in the first two principal
+    components, with the $\pm1$ margins and the circled support vectors. The
+    boundary is an illustrative two-dimensional fit; the reported model is
+    trained on all ten features.}
+    \label{fig:soft-boundary}
+\end{figure}
+
+\subsection{Solving the Primal Directly: Stochastic Subgradient and Momentum Methods}
+\label{sec:sgm}
+
+The dual quadratic program above is solved in this report by \texttt{scikit-learn}'s
+SMO routine. The soft-margin \emph{primal} can instead be minimized directly.
+Eliminating the slack variables gives hinge losses
+$\ell_i(w,b)=\max(0,1-t_i(w^\top x_i+b))$. Dividing the constrained objective
+by the positive constant $mC$ does not change its minimizer and gives
+\begin{equation}
+    P(w,b)=\frac{1}{m}\sum_{i=1}^{m}\ell_i(w,b)
+    +\frac{\lambda}{2}\lVert w\rVert^2,
+    \qquad \lambda=\frac{1}{mC}.
+\end{equation}
+This regularized finite sum is a natural target for the stochastic
+\emph{subgradient} method (SSG), often grouped under the broader label SGD.
+The distinction matters because hinge loss is not differentiable when
+$t_i(w^\top x_i+b)=1$. For implementation, let
+$\theta=[w^\top,b]^\top$, $z_i=[x_i^\top,1]^\top$, and
+$R=\operatorname{diag}(1,\ldots,1,0)$. The zero in $R$ ensures that the
+intercept is not regularized. Each step samples one index $k$ uniformly at
+random. A valid stochastic subgradient is
+\begin{equation}
+    g_k(\theta)=\begin{cases}
+        \lambda R\theta, & t_k\theta^\top z_k\ge 1,\\[2pt]
+        \lambda R\theta-t_k z_k, & t_k\theta^\top z_k<1.
+    \end{cases}
+\end{equation}
+The regularizer is $\lambda$-strongly convex in the weight coordinates
+\cite{lec-strongconvex}, while the intercept remains unpenalized. The baseline
+update is the stochastic subgradient method from the course lecture
+\cite{lec-sgm}, $\theta_{k+1}=\theta_k-\eta_k g_k(\theta_k)$. Two momentum variants from the momentum-methods
+lecture \cite{lec-momentum} are also evaluated:
+\begin{equation}
+\begin{aligned}
+\text{Heavy Ball:}\quad
+    \theta_{k+1}&=\theta_k-\eta_k g_k(\theta_k)+\beta(\theta_k-\theta_{k-1}),\\
+\text{Nesterov-style:}\quad
+    y_k&=\theta_k+\beta(\theta_k-\theta_{k-1}),\\
+    \theta_{k+1}&=y_k-\eta_k g_k(y_k).
+\end{aligned}
+\end{equation}
+The word ``style'' is important: classical Heavy Ball and Nesterov acceleration
+theory assumes a smooth gradient, whereas the hinge objective is nonsmooth.
+Replacing the gradient by a sampled subgradient gives useful empirical
+comparators, but does not inherit the classical accelerated convergence rate.
+
+The optimizer comparison begins only after model selection. The full-data grid
+search above selected
+\begin{equation}
+    \boxed{C=0.01},\qquad
+    \lambda=\frac{1}{mC}=\frac{1}{114(0.01)}\approx0.8772.
+\end{equation}
+Figure~\ref{fig:sgm-convergence} and Table~\ref{tab:sgm-comparison} therefore
+optimize the primal for \emph{this one fixed value, $C=0.01$}. They do not
+repeat the grid search and do not compare different values of $C$. The
+reference optimum for the normalized objective is $P^\star=0.554274$, obtained
+by solving the equivalent slack-variable convex quadratic program at
+$C=0.01$. Multiplying back by $mC=1.14$ gives the original primal value
+$0.6319$, agreeing with the primal--dual solution reported above. For a
+controlled comparison, all three algorithms start at zero,
+use the same 50,000 sampled observations, and use
+$\eta_k=a/[\lambda(k+100)]$. A small common grid
+$a\in\{0.25,0.5,1,2\}$ is searched for every method; the momentum methods also
+search $\beta\in\{0.3,0.5,0.7,0.9\}$. Within each method, the pair with the
+lowest final averaged-iterate objective is reported. This tuning is only an
+optimization diagnostic on the training objective and is not a predictive
+performance estimate.
+
+\begin{table}[htbp]
+\centering
+\caption{Controlled optimizer comparison for the single grid-selected value
+$C=0.01$ ($\lambda\approx0.8772$). The
+5\% and 1\% columns give the first step at which the best raw iterate reaches
+the stated gap relative to $P^\star$; 114 steps correspond to approximately
+one epoch. AUROC is in-sample and is shown only as a solution-agreement
+diagnostic. Cosine is the similarity of the averaged iterate to the reference
+QP solution.}
+\label{tab:sgm-comparison}
+\scriptsize
+\resizebox{\textwidth}{!}{\input{output/tables/primal_optimizer_comparison_table.tex}}
+\end{table}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{output/figures/primal_optimizer_comparison.pdf}
+    \caption{Stochastic primal optimization for the fixed selected value
+    $C=0.01$ ($\lambda\approx0.8772$), under a shared data sequence and
+    iteration budget. Left: objective values of the running averaged iterates.
+    Right: best-so-far raw-iterate optimality gaps. All three methods approach
+    the same reference optimum, but momentum does not accelerate this
+    nonsmooth stochastic problem under the tested settings.}
+    \label{fig:sgm-convergence}
+\end{figure}
+
+The comparison does not show a meaningful momentum advantage. SSG reaches the
+5\% gap in 96 updates (0.84 epochs) and the 1\% gap in 389 updates (3.41
+epochs). Heavy Ball reaches the two thresholds in 150 and 391 updates, while
+the Nesterov-style method requires 98 and 389 updates. All averaged iterates
+have objective approximately $0.5544$, in-sample AUROC approximately $0.959$,
+and cosine similarity above $0.9998$ to the reference solution. Thus the
+methods converge to essentially the same fixed-$C$ classifier, while plain SSG
+is the simplest and at least as fast under this controlled run. This negative acceleration result
+is plausible: strong convexity does not remove the hinge kink, sampled
+subgradients remain noisy near the optimum, and the smooth-gradient Heavy Ball
+and Nesterov rate guarantees do not apply. Running averages stabilize all
+three methods.
+
+\section{Kernel Trick: RBF Soft-Margin SVM}
+\label{sec:kernel-rbf}
+
+\subsection{From a Linear Boundary to a Kernel Boundary}
+
+The strong linear soft-margin result does not prove that a nonlinear boundary
+is unnecessary; it only establishes a competitive baseline. The kernel trick
+tests nonlinear structure without explicitly constructing a potentially
+high-dimensional feature vector. Let
+$\varphi(x)$ map an observation into a feature space $\mathcal{H}$. The
+soft-margin primal in that space is
+\begin{equation}
+\begin{aligned}
+\min_{w,b,\xi}\quad
+&\frac12\lVert w\rVert_{\mathcal H}^2+C\sum_{i=1}^{m}\xi_i\\
+\text{subject to}\quad
+&t_i(\langle w,\varphi(x_i)\rangle_{\mathcal H}+b)
+\geq1-\xi_i,\qquad \xi_i\geq0.
+\end{aligned}
+\end{equation}
+The corresponding dual depends on transformed observations only through inner
+products:
+\begin{equation}
+\begin{aligned}
+\max_{\alpha}\quad
+&\sum_i\alpha_i-
+\frac12\sum_i\sum_j\alpha_i\alpha_jt_it_jK(x_i,x_j)\\
+\text{subject to}\quad
+&0\leq\alpha_i\leq C,\qquad \sum_i\alpha_it_i=0,
+\end{aligned}
+\end{equation}
+where
+$K(x_i,x_j)=\langle\varphi(x_i),\varphi(x_j)\rangle_{\mathcal H}$.
+The fitted score is
+\begin{equation}
+    f(x)=\sum_{i\in\mathcal S}\alpha_i t_iK(x_i,x)+b,
+\end{equation}
+so only the support-vector set $\mathcal S$ is needed at prediction time.
+Kernelization does not replace the soft margin: $C$ still bounds each dual
+multiplier and controls the penalty for overlap.
+
+This analysis uses the radial basis function (RBF) kernel
+\begin{equation}
+    K(x_i,x_j)=\exp[-\gamma\lVert x_i-x_j\rVert_2^2].
+\end{equation}
+Small $\gamma$ produces a smooth, slowly varying decision surface and tends
+toward linear-like behavior over a limited data region. Large $\gamma$ makes
+each observation influential only in a narrow neighborhood, allowing a highly
+curved boundary that can memorize a small training cohort. Therefore $C$ and
+$\gamma$ must be tuned jointly.
+
+\subsection{Validity of the RBF Kernel: Positive Semi-Definiteness and
+Feature Map}
+\label{sec:rbf-psd}
+
+Everything above presumes that some feature map $\varphi$ exists with
+$K(x,y)=\langle\varphi(x),\varphi(y)\rangle_{\mathcal H}$. That is not
+automatic: an arbitrary similarity function need not be an inner product in
+any space, and if it is not, the dual loses concavity and the optimization
+guarantees of Section~\ref{sec:slater} no longer apply. This subsection
+establishes the two properties that license the RBF kernel.
+
+A symmetric kernel $K$ is \emph{positive semi-definite} (PSD) if for every
+finite set $x_1,\ldots,x_m$ the Gram matrix $G_{ij}=K(x_i,x_j)$ satisfies
+$c^\top Gc\geq0$ for all $c\in\mathbb{R}^m$. Four standard closure rules are
+used \cite{boyd2004,lec-statlearn}: if $K_1,K_2$ are PSD then (K1) $\lambda_1K_1+\lambda_2K_2$
+is PSD for $\lambda_1,\lambda_2\geq0$; (K2) the product $K_1K_2$ is PSD, by the
+Schur product theorem; (K3) $K(x,y)=f(x)f(y)$ is PSD for any real $f$; and
+(K4) a pointwise limit of PSD kernels is PSD.
+
+\paragraph{The RBF kernel is PSD.}
+The linear kernel is PSD because
+\begin{equation}
+    c^\top Gc=\sum_{i}\sum_{j}c_ic_j\,x_i^\top x_j
+    =\Bigl\lVert\sum_{i}c_ix_i\Bigr\rVert_2^2\geq0,
+\end{equation}
+so $(x^\top y)^k$ is PSD for every integer $k\geq0$ by repeated application of
+(K2). The exponential series has non-negative coefficients, hence
+\begin{equation}
+    \exp\bigl[2\gamma\,x^\top y\bigr]
+    =\sum_{k=0}^{\infty}\frac{(2\gamma)^k}{k!}\,(x^\top y)^k
+\end{equation}
+is a limit of non-negative combinations of PSD kernels and is PSD by (K1) and
+(K4). Expanding the squared norm as
+$\lVert x-y\rVert_2^2=\lVert x\rVert_2^2-2x^\top y+\lVert y\rVert_2^2$
+factors the RBF kernel into
+\begin{equation}
+    \exp\bigl[-\gamma\lVert x-y\rVert_2^2\bigr]
+    =\underbrace{e^{-\gamma\lVert x\rVert_2^2}
+      e^{-\gamma\lVert y\rVert_2^2}}_{\text{PSD by (K3)}}
+    \cdot
+    \underbrace{\exp\bigl[2\gamma\,x^\top y\bigr]}_{\text{PSD}},
+\end{equation}
+which is PSD by (K2). The Gram matrix is therefore PSD for any dataset and any
+$\gamma>0$.
+
+\paragraph{An explicit feature map.}
+The same expansion produces $\varphi$ directly. Writing the multinomial
+expansion of $(x^\top y)^k$ over multi-indices
+$\nu\in\mathbb{N}_0^{p}$, with $\lvert\nu\rvert=\sum_j\nu_j$,
+$\nu!=\prod_j\nu_j!$ and $x^\nu=\prod_jx_j^{\nu_j}$, gives
+\begin{equation}
+    \exp\bigl[2\gamma\,x^\top y\bigr]
+    =\sum_{\nu\in\mathbb{N}_0^{p}}
+      \frac{(2\gamma)^{\lvert\nu\rvert}}{\nu!}\,x^\nu y^\nu .
+\end{equation}
+Reinstating the two Gaussian factors and splitting each term symmetrically
+yields $K(x,y)=\langle\varphi(x),\varphi(y)\rangle$ with components
+\begin{equation}
+    \varphi_\nu(x)=e^{-\gamma\lVert x\rVert_2^2}
+    \sqrt{\frac{(2\gamma)^{\lvert\nu\rvert}}{\nu!}}\;x^\nu,
+    \qquad \nu\in\mathbb{N}_0^{p}.
+\end{equation}
+The index set is all multi-indices, so $\mathcal H$ is
+infinite-dimensional: $\varphi$ contains every monomial in the $p$ features,
+damped by $e^{-\gamma\lVert x\rVert_2^2}$ and weighted so the series converges.
+
+\paragraph{Consequences.}
+Three points follow. First, the exact feature map is infinite-dimensional and
+is therefore not represented as a finite explicit feature vector in this
+analysis; the scalar $K(x_i,x_j)$ instead evaluates the required inner product
+directly. Second, PSD of the Gram matrix makes the dual objective concave, so
+every local optimum is globally optimal and there are no spurious local
+maxima. PSD alone does not require the optimal dual coefficients to be unique.
+Third, the primal in $\mathcal H$ is convex with affine constraints and admits
+the strictly feasible point
+$(w,b,\xi)=(0,0,2\mathbf{1})$, so Slater's condition holds exactly as in
+Section~\ref{sec:slater}; the primal--dual gap of $2.2\times10^{-11}$ reported
+for the fitted RBF model is therefore a meaningful check that the solver
+reached a global optimum.
+
+\subsection{Joint Grid Search and Nested Validation}
+
+The RBF analysis uses the same log transformation, median imputation,
+standardization, stratified folds, and random seed as the linear analysis. The
+joint grid contains nine values of $C$ from $0.01$ to $100.00$ and nine values
+of $\gamma$ from $1.00\times10^{-3}$ to $10.00$, both at half-logarithmic
+spacing. Thus each inner search evaluates 81 parameter pairs by mean AUROC.
+
+In every outer fold, preprocessing and the complete 81-point grid search are
+fitted using only the outer training data. Table~\ref{tab:rbf-nested} shows
+that the selected pairs vary substantially across folds. This instability is
+itself relevant: with only 114 observations, the apparently best nonlinear
+scale depends on which observations enter the training set.
+
+\begin{table}[H]
+\centering
+\caption{Nested cross-validation for joint RBF tuning. AUROC values and parameter displays use two decimals or two-decimal scientific notation.}
+\label{tab:rbf-nested}
+\small
+\input{output/tables/rbf_nested_cv_table.tex}
+\end{table}
+
+The full-data grid search selected $C=0.01$ and
+$\gamma=1.00\times10^{-3}$. This $\gamma$ is the lower boundary of the
+prespecified grid, indicating that the validation criterion favors the
+smoothest candidate rather than a strongly nonlinear boundary. At the
+selected pair, mean training AUROC is $0.96$ and mean validation AUROC is
+$0.95$, a gap of only $0.01$. The induced-feature-space primal and dual
+objectives both round to $1.12$, with full-precision duality gap
+$2.23\times10^{-11}$.
+
+\begin{table}[H]
+\centering
+\caption{Full-data RBF model-selection and optimization audit.}
+\label{tab:rbf-summary}
+\input{output/tables/rbf_summary_table.tex}
+\end{table}
+
+\subsection{Overfitting Diagnostic}
+
+The selected RBF model is not strongly overfit, but the grid contains a clear
+demonstration of the risk. Figure~\ref{fig:rbf-grid} compares validation AUROC
+with the train--validation gap. At $C=0.01$ and $\gamma=10.00$, training AUROC
+is $1.00$ while validation AUROC falls to $0.54$, giving a gap of $0.46$.
+Across all values of $C$ at $\gamma=10.00$, training AUROC remains $1.00$ but
+validation AUROC is only $0.54$--$0.59$. The high-$\gamma$ kernel has therefore
+memorized the training folds without learning a stable decision rule.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.98\textwidth]{output/figures/rbf_kernel_grid_heatmaps.pdf}
+    \caption{Joint RBF grid search. Panel (a) shows mean validation AUROC. Panel (b) shows mean training AUROC minus mean validation AUROC; large positive values indicate overfitting. The white star marks the selected full-data pair $C=0.01$, $\gamma=1.00\times10^{-3}$.}
+    \label{fig:rbf-grid}
+\end{figure}
+
+This result illustrates why training performance cannot be used to choose a
+kernel. A nonlinear model can achieve perfect training ranking precisely where
+its held-out ranking is close to chance. Nested validation, the
+train--validation gap, and the position of the selected point on the grid must
+be interpreted together.
+
+Figure~\ref{fig:rbf-boundary} shows the RBF decision surface in the same
+principal-component projection as the linear boundary of
+Figure~\ref{fig:soft-boundary}. The kernel lets the boundary curve, but the two
+convex hulls still overlap: the added flexibility bends the surface around
+individual points without producing a clean separation in this illustrative
+two-dimensional fit. This picture motivates the comparison but does not decide
+which model generalizes better; that conclusion comes from the untouched outer
+folds below.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.72\textwidth]{output/figures/fig_step4_rbf_pc_boundary.pdf}
+    \caption{RBF-kernel decision boundary in the first two principal components,
+    to be compared with the straight linear boundary of
+    Figure~\ref{fig:soft-boundary}. The boundary curves but the subtype hulls
+    still overlap. Illustrative two-dimensional fit at a moderate $\gamma$; the
+    tuned model selected a much smoother $\gamma$.}
+    \label{fig:rbf-boundary}
+\end{figure}
+
+\subsection{Pareto Frontier of Validation Performance and Overfitting}
+
+A Pareto analysis makes this trade-off explicit. The two objectives are to
+maximize mean validation AUROC and minimize the train--validation AUROC gap.
+Grid setting A dominates setting B when A has validation AUROC no smaller and
+an overfitting gap no larger, with at least one strict improvement. A setting
+is Pareto-optimal when no other setting dominates it. The hyperparameters
+$C$ and $\gamma$ identify the grid settings; they are not themselves the two
+Pareto objectives.
+
+Figure~\ref{fig:pareto-frontier} plots every evaluated setting. For the linear
+soft-margin grid, the frontier collapses to one point:
+\begin{equation}
+    C=0.01,\qquad
+    \operatorname{AUROC}_{\mathrm{val}}=0.9452,\qquad
+    \operatorname{gap}=0.0141.
+\end{equation}
+Every other tested linear value of $C$ has both a lower validation AUROC and a
+larger train--validation gap.
+
+The RBF grid has a four-setting Pareto plateau. All four use
+$\gamma=0.00316$ and
+\begin{equation}
+    C\in\{0.01,0.0316,0.10,0.3162\},
+\end{equation}
+with validation AUROC $0.9511$ and gap $0.0083$ to stored precision. Because
+their two Pareto outcomes are indistinguishable, the smallest value $C=0.01$
+is the natural simplicity tie-break. The ordinary grid search reported
+$\gamma=0.001$ because it has the same maximum validation AUROC and appears
+first among tied scores; the Pareto diagnostic instead identifies
+$\gamma=0.00316$ because its train--validation gap is smaller by approximately
+$2.06\times10^{-6}$. This difference is numerically negligible and does not
+constitute evidence of a meaningful nonlinear advantage.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.98\textwidth]{output/figures/svm_grid_pareto_frontier.pdf}
+    \caption{Pareto analysis of the linear and RBF tuning grids. The horizontal axis is the train--validation AUROC gap, so smaller values are preferred; the vertical axis is mean validation AUROC, so larger values are preferred. Red stars mark non-dominated settings. In panel (a), color represents $\log_{10}C$. In panel (b), color represents $\log_{10}\gamma$ and marker size increases with $C$.}
+    \label{fig:pareto-frontier}
+\end{figure}
+
+This frontier is a tuning diagnostic computed from the cross-validated grid;
+it is not an independent performance estimate. Selecting a point from the
+frontier and then quoting the same validation folds would be optimistic. The
+final linear-versus-RBF conclusion therefore continues to use the untouched
+nested outer folds in the next subsection.
+
+\subsection{Comparison with the Linear Soft-Margin Model}
+
+The primary comparison uses mean outer-fold AUROC because each outer fold is
+untouched by its corresponding parameter search. The linear model achieves
+$0.95\pm0.04$, whereas the RBF model achieves $0.94\pm0.04$. The RBF-minus-linear
+difference in mean outer AUROC is $-3.17\times10^{-3}$, so there is no observed
+improvement from the kernel. The RBF accuracy is $0.82$, sensitivity is
+$0.73$, and specificity is $0.91$, compared with approximately $0.86$ for all
+three quantities under the linear model.
+
+\begin{table}[H]
+\centering
+\caption{Nested cross-validation comparison of linear and RBF soft-margin SVMs. Mean outer-fold AUROC is the primary model-selection comparison.}
+\label{tab:kernel-comparison}
+\small
+\input{output/tables/kernel_comparison_table.tex}
+\end{table}
+
+The pooled RBF AUROC is shown for completeness but is not the primary estimate.
+Different outer folds selected different $(C,\gamma)$ pairs, so their raw
+decision scores have different scales and pooling can alter cross-fold ranks.
+The mean of the five independently evaluated outer-fold AUROCs avoids this
+scale-comparability problem. Figure~\ref{fig:linear-rbf-roc} therefore averages
+fold-specific ROC curves on a common false-positive-rate grid.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.70\textwidth]{output/figures/linear_vs_rbf_nested_roc.pdf}
+    \caption{Mean nested outer-fold ROC curves for the linear and RBF soft-margin models. Shaded bands show one standard deviation across the five outer folds.}
+    \label{fig:linear-rbf-roc}
+\end{figure}
+
+The present data do not support retaining the RBF kernel. It adds a second
+hyperparameter, produces unstable fold-specific choices, selects the smoothest
+available $\gamma$ on the full dataset, and does not improve the mean nested
+outer-fold AUROC.
+With only 114 synthetic observations, a flexible high-$\gamma$ boundary has a
+substantial overfitting risk. The linear soft-margin model is therefore the
+preferred specification unless a larger independent dataset demonstrates a
+reproducible nonlinear improvement.
+
+The complete grid, nested predictions, support-vector audit, primal--dual
+checks, comparison table, and figures are generated by
+\path{scripts/kernel_rbf_svm.py} and written under \path{output/csv/} and
+\path{output/figures/}.
+
+\section{Integrated Results Summary}
+
+The feasible ten-row calculation in Appendix~\ref{app:worked-examples} is an
+algebraic illustration only. The report's feasibility conclusion is based on
+the complete standardized dataset and all five cross-validation training
+folds. Every full analysis problem was declared infeasible by the HiGHS
+linear-programming solver, as summarized earlier in
+Table~\ref{tab:feasibility}.
+
+These outcomes show that the UPA and BPA observations overlap in the selected
+ten-dimensional linear feature space. This is a property of the data geometry
+rather than a failure of the quadratic optimizer.
+Section~\ref{sec:full-certificate} strengthens the solver status with an
+explicit Farkas certificate: a nonnegative vector satisfies
+$U^\top\lambda\approx0$ and $\mathbf{1}^\top\lambda=1$, proving that the
+standardized class convex hulls intersect. Consequently, the hard-margin
+primal cannot be fitted and no hard-margin ROC exists.
+
+The soft-margin model converts this empty feasible set into a feasible convex
+program by allowing penalized slack. Grid search selected $C=0.01$. Its mean
+five-fold validation AUROC was $0.95$, while nested cross-validation produced
+out-of-fold AUROC $0.95$, accuracy $0.86$, sensitivity $0.86$, and specificity
+$0.86$. The full-data primal and dual objectives both round to $0.63$, with a
+full-precision duality gap of $4.85\times10^{-10}$. These soft-margin results
+are kept distinct from the infeasible hard-margin formulation.
+
+The RBF experiment did not improve the primary nested estimate. Its mean
+outer-fold AUROC was $0.94\pm0.04$, compared with $0.95\pm0.04$ for the linear
+soft-margin model. The selected full-data pair was $C=0.01$ and
+$\gamma=1.00\times10^{-3}$, with $\gamma$ at the smoothest boundary of the
+grid. High-$\gamma$ combinations achieved training AUROC $1.00$ while falling
+as low as validation AUROC $0.54$, demonstrating substantial overfitting. The
+Pareto audit retained one linear setting and a four-setting RBF plateau when
+validation AUROC was maximized jointly with minimization of the
+train--validation gap; it did not change the nested-CV preference for the
+linear model.
+
+\section{Discussion and Limitations}
+
+The derivative analysis confirms that the hard-margin primal is a simple convex quadratic program: its objective has gradient $[w^\top,0]^\top$ and positive-semidefinite Hessian $\operatorname{diag}(I_p,0)$, while each constraint is affine. These properties make any feasible instance globally tractable. They do not, however, guarantee that a feasible point exists.
+
+The feasible teaching subset does not contradict the full-data result: feasibility is lost when the remaining 104 margin constraints are added.
+
+The negative hard-margin feasibility result is substantively consistent with
+the application. Clinical measurements from UPA and BPA patients can overlap
+because of biological heterogeneity, measurement variation, and incomplete
+diagnostic information. A hard-margin linear model assumes away this overlap.
+The soft-margin formulation is therefore not a workaround for a failed
+solver; it is a different, explicitly stated optimization model whose slack
+variables quantify the overlap.
+
+The selected value $C=0.01$ lies at the lower end of the prespecified grid.
+This indicates that stronger regularization was preferred to aggressively
+penalizing every violation. The neighboring value $C=0.03$ produced a similar
+mean validation AUROC, so the exact numerical optimum should not be treated as
+a universal clinical constant. It is specific to this feature scaling,
+candidate grid, synthetic cohort, folds, and selection metric. Nested
+cross-validation reduces selection optimism but does not replace external
+validation.
+
+The RBF comparison reinforces this limitation. Jointly searching 81
+$(C,\gamma)$ combinations increases the opportunity to select noise, and the
+preferred pair varied substantially between outer folds. The nested analysis
+found no performance gain, while the high-$\gamma$ region produced perfect
+training AUROC and near-chance validation. Model complexity should therefore
+not be justified by training fit. On this dataset, the linear model offers
+similar or better validation with fewer tuning degrees of freedom and a more
+interpretable standardized-space score.
+
+\subsection{Robustness of the Linear--RBF Comparison}
+\label{sec:stat-comparison}
+
+The primary comparison above uses mean AUROC across untouched outer folds.
+Two additional diagnostics explain why the conclusion is deliberately modest:
+the evidence supports choosing the simpler linear model, but it does not show
+that the linear model has intrinsically superior discrimination.
+
+\paragraph{Pooled out-of-fold discrimination.}
+On the pooled out-of-fold decision scores, the linear soft-margin AUROC
+($0.947$) exceeds the RBF AUROC ($0.851$). This number is not a valid primary
+head-to-head estimate, however, because different outer folds selected
+different $(C,\gamma)$ pairs and their raw decision scores are not calibrated
+to a common scale. Pooling them can change ranks across folds even though each
+fold-specific ROC curve is unchanged. For that reason, the pooled gap and its
+naive DeLong or patient-bootstrap significance tests are not used to choose the
+model. No formal inference is attached to this scale-sensitive pooled
+calculation.
+
+\paragraph{Mean outer-fold discrimination and seed robustness.}
+The fairer comparison computes AUROC within each untouched outer fold and then
+averages the five values. Repeating the full nested procedure under twenty
+fold-assignment seeds, the linear and RBF estimates track each other closely
+(Figure~\ref{fig:seed-robustness}). The mean difference is $+0.0002$, the
+descriptive $95\%$ interval across seeds is $[-0.022,\,+0.017]$, and the linear
+model equals or exceeds the RBF model in twelve of twenty runs. These repeated
+splits reuse the same 114 observations and are therefore a stability analysis,
+not twenty independent experiments. They show that the direction of the tiny
+gap depends on the split and provide no stable discrimination advantage for
+either model.
+
+\paragraph{Interpretation.}
+The diagnostics answer different questions. The pooled calculation exposes a
+cross-fold score-scaling problem; the repeated nested analysis shows that the
+proper fold-wise comparison is essentially tied. Because nonlinear flexibility
+does not deliver a stable outer-fold gain, the linear model is preferred on
+grounds of parsimony, fewer tuning degrees of freedom, and a directly
+interpretable standardized-space score.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{output/figures/fig_stat_seed_robustness.png}
+    \caption{Seed-robustness of the fairer mean outer-fold AUROC. Panel (a):
+    linear and RBF values across twenty fold-assignment seeds. Panel (b): the
+    per-seed difference (linear minus RBF) with its mean and descriptive $95\%$
+    interval. The interval straddles zero, showing that neither
+    model has a stable within-fold discrimination advantage across splits.}
+    \label{fig:seed-robustness}
+\end{figure}
+
+The analysis also uses synthetic rather than patient-level data. Its purpose is therefore methodological: it determines whether the requested optimization model is compatible with the supplied project dataset. It does not estimate clinical utility or external generalization.
+
+\section{Conclusion}
+
+This report first formulated PA subtype classification as a linear hard-margin
+SVM and showed, by solver status, Farkas' lemma, and intersecting convex hulls,
+that the complete dataset and every training fold are nonseparable. The
+hard-margin primal therefore has no feasible solution and cannot produce a
+valid ROC curve. The subsequent soft-margin primal introduces slack variables,
+while its dual replaces the hard-margin constraint $\alpha_i\geq0$ with the
+box constraint $0\leq\alpha_i\leq C$. Leakage-safe grid search selected
+$C=0.01$, and nested cross-validation yielded mean outer-fold AUROC $0.95$.
+The optimized
+soft-margin primal and dual values agree to numerical tolerance. The combined
+analysis then tested an RBF kernel by jointly tuning $C$ and $\gamma$. The RBF
+mean outer-fold AUROC was $0.94$, slightly below the linear value of $0.95$,
+and highly localized kernels showed severe train--validation gaps. The linear
+soft-margin SVM is therefore preferred for the current dataset. This conclusion
+preserves the central distinctions: hard-margin infeasibility is a statement
+about data geometry, soft-margin optimization explicitly trades margin width
+against violations, and a kernel should be retained only when its nonlinear
+flexibility improves performance on data not used for tuning.
+
+\begin{thebibliography}{9}
+
+\bibitem{cortes1995}
+Cortes, C., and Vapnik, V. (1995).
+Support-vector networks.
+\textit{Machine Learning}, 20, 273--297.
+
+\bibitem{boyd2004}
+Boyd, S., and Vandenberghe, L. (2004).
+\textit{Convex Optimization}.
+Cambridge University Press.
+
+\bibitem{rossi2019}
+Rossi, G. P. (2019).
+Primary aldosteronism: JACC state-of-the-art review.
+\textit{Journal of the American College of Cardiology}, 74(22), 2799--2811.
+\url{https://doi.org/10.1016/j.jacc.2019.09.057}
+
+\bibitem{cghmidterm}
+Nguyen, T. T. (2026).
+Machine learning artificial intelligence to predict curable forms of hypertension:
+A clinical decision support system for primary aldosteronism.
+CGH midterm research report, 13 March 2026.
+
+\bibitem{lec-convex}
+Optimization for Data Science (2026).
+\textit{Convex Optimization Models}. Week~8, Class~1 lecture notes.
+
+\bibitem{lec-statlearn}
+Optimization for Data Science (2026).
+\textit{Statistical Learning Models}. Week~9, Class~1 lecture notes.
+
+\bibitem{lec-duality}
+Optimization for Data Science (2026).
+\textit{Introduction to Duality}. Week~9, Class~2 lecture notes.
+
+\bibitem{lec-firstorder}
+Optimization for Data Science (2026).
+\textit{First-Order Optimality Conditions and Sensitivity Analysis}.
+Week~10, Class~1 lecture notes.
+
+\bibitem{lec-strongconvex}
+Optimization for Data Science (2026).
+\textit{Strong Convexity and Descent Methods}. Week~10, Class~2 lecture notes.
+
+\bibitem{lec-sgm}
+Optimization for Data Science (2026).
+\textit{The Stochastic Gradient Method}. Lecture notes.
+
+\bibitem{lec-momentum}
+Optimization for Data Science (2026).
+\textit{Momentum Methods}. Week~11, Class~1 lecture notes.
+
+\end{thebibliography}
+
+\appendix
+
+\section{Worked Teaching Examples}
+\label{app:worked-examples}
+
 \subsection{Worked Separable Primal--Lagrangian--Dual Example}
 \label{sec:toy-primal-dual}
 
 This deliberately small example makes the primal, Lagrangian, and dual
-views visible before returning to the clinical feature space. It uses the
+views transparent. It uses the
 five observations in Table~\ref{tab:toy-data}. Each point is embedded in the
 same ten-dimensional notation as the main analysis by setting
 $x_3=\cdots=x_{10}=0$. The symbol $y_i$ used in this example has exactly the
@@ -623,475 +1712,7 @@ This zero duality gap is the numerical manifestation of strong duality. The
 figure and all calculations in this subsection are reproduced by
 \texttt{scripts/build\_svm\_primal\_dual\_toy\_example.py}.
 
-\section{Linear Soft-Margin SVM}
-\label{sec:soft-margin}
-
-\subsection{Why Slack Variables Are Needed}
-
-The hard-margin analysis, with the detailed certificate given in
-Section~\ref{sec:full-certificate}, establishes that no $(w,b)$ can satisfy
-all 114 unit-margin inequalities simultaneously. The soft-margin model changes the
-assumption rather than attempting to optimize over an empty set. For each
-observation it introduces a slack variable $\xi_i\geq0$ that measures the
-shortfall from the desired signed functional margin of one:
-\begin{equation}
-    \xi_i=\max\{0,1-t_i(w^\top x_i+b)\}.
-\end{equation}
-When $\xi_i=0$, the observation lies on or outside its supporting margin. If
-$0<\xi_i\leq1$, it lies inside the margin but remains on the correct side of
-the decision boundary. If $\xi_i>1$, its signed score is negative and it is
-misclassified. This interpretation directly connects the optimization
-variables to the geometry of overlapping UPA and BPA observations.
-
-\subsection{Soft-Margin Primal Problem}
-
-The linear soft-margin primal problem is \cite{cortes1995,lec-statlearn}
-\begin{equation}
-\begin{aligned}
-\min_{w,b,\xi}\quad
-&p(w,b,\xi)=\frac12\lVert w\rVert_2^2+C\sum_{i=1}^{m}\xi_i\\
-\text{subject to}\quad
-&t_i(w^\top x_i+b)\geq1-\xi_i,\qquad i=1,\ldots,m,\\
-&\xi_i\geq0,\qquad i=1,\ldots,m.
-\end{aligned}
-\end{equation}
-The first term favors a wide margin, while the second penalizes total margin
-violation. The constant $C>0$ controls their trade-off. Unlike the hard-margin
-problem, this primal is always feasible: $w=0$, $b=0$, and $\xi_i=1$ satisfy
-every constraint. Eliminating the slack variables gives the equivalent
-unconstrained hinge-loss form
-\begin{equation}
-    \min_{w,b}\quad
-    \frac12\lVert w\rVert_2^2
-    +C\sum_{i=1}^{m}\max\{0,1-t_i(w^\top x_i+b)\}.
-\end{equation}
-The constrained form is retained below because it makes the primal--dual
-relationship and the role of $C$ explicit.
-
-\subsection{Lagrangian and KKT Conditions}
-
-Introduce $\alpha_i\geq0$ for
-$1-\xi_i-t_i(w^\top x_i+b)\leq0$ and $\mu_i\geq0$ for
-$-\xi_i\leq0$. The Lagrangian is
-\begin{equation}
-\begin{aligned}
-\mathcal{L}(w,b,\xi,\alpha,\mu)
-={}&\frac12\lVert w\rVert_2^2+C\sum_i\xi_i\\
-&+\sum_i\alpha_i[1-\xi_i-t_i(w^\top x_i+b)]
--\sum_i\mu_i\xi_i.
-\end{aligned}
-\end{equation}
-Stationarity with respect to the primal variables gives
-\begin{equation}
-    w=\sum_i\alpha_i t_i x_i,\qquad
-    \sum_i\alpha_i t_i=0,\qquad
-    C-\alpha_i-\mu_i=0.
-\end{equation}
-Because $\mu_i\geq0$, the final equality produces the upper bound
-$0\leq\alpha_i\leq C$. The complete KKT system additionally requires primal
-feasibility, dual feasibility, and complementary slackness:
-\begin{equation}
-\begin{aligned}
-&t_i(w^\top x_i+b)-1+\xi_i\geq0,\qquad \xi_i\geq0,\\
-&0\leq\alpha_i\leq C,\\
-&\alpha_i[1-\xi_i-t_i(w^\top x_i+b)]=0,\\
-&(C-\alpha_i)\xi_i=0.
-\end{aligned}
-\end{equation}
-These conditions are necessary and sufficient because the primal objective is
-convex, its constraints are affine, and strict feasibility is obtained by
-choosing sufficiently large positive slacks. They also explain the support
-vectors. An observation with $\alpha_i=0$ does not determine $w$ and lies
-outside the margin. A point with $0<\alpha_i<C$ lies exactly on a supporting
-margin. A point with $\alpha_i=C$ may lie inside the margin or be
-misclassified, so it receives the largest multiplier permitted by the chosen
-penalty.
-
-\subsection{Soft-Margin Dual Problem}
-
-Minimizing the Lagrangian over $w$, $b$, and $\xi$ using the stationarity
-conditions yields
-\begin{equation}
-\begin{aligned}
-\max_{\alpha}\quad
-&d(\alpha)=\sum_{i=1}^{m}\alpha_i
--\frac12\sum_{i=1}^{m}\sum_{j=1}^{m}
-\alpha_i\alpha_jt_it_jx_i^\top x_j\\
-\text{subject to}\quad
-&0\leq\alpha_i\leq C,\qquad
-\sum_{i=1}^{m}\alpha_it_i=0.
-\end{aligned}
-\end{equation}
-The objective has the same form as the hard-margin dual, but the new box
-constraint $\alpha_i\leq C$ is essential. It prevents any single observation
-from exerting unlimited pressure on the separating hyperplane. Since the
-soft-margin primal is strictly feasible, strong duality holds and the optimal
-primal and dual values are equal up to numerical solver tolerance.
-
-\subsection{Selecting the Penalty Parameter by Grid Search}
-
-A small $C$ places greater emphasis on a wide, strongly regularized margin and
-accepts more slack. A large $C$ penalizes violations more severely and moves
-toward hard-margin behavior, which can increase sensitivity to overlapping
-observations. Because neither extreme is known in advance, $C$ is selected
-from the half-logarithmic grid
-\begin{equation}
-\mathcal{C}=\{10^{k/2}:k=-4,-3,\ldots,4\}.
-\end{equation}
-Displayed to two decimal places, these values are
-\begin{equation}
-0.01,\ 0.03,\ 0.10,\ 0.32,\ 1.00,\ 3.16,\ 10.00,\ 31.62,\ 100.00.
-\end{equation}
-Each candidate is evaluated by mean five-fold stratified validation AUROC.
-The log transformation, median imputation, standardization, and linear SVM
-are placed in one pipeline, so every preprocessing parameter is estimated
-from the corresponding training fold only.
-
-Nested cross-validation separates model selection from performance
-estimation. In each of five outer folds, an independent five-fold inner grid
-search chooses $C$ using only the outer training observations. The selected
-model then scores the untouched outer test fold. Table~\ref{tab:soft-nested}
-shows that all five inner searches selected $C=0.01$.
-
-\begin{table}[htbp]
-\centering
-\caption{Nested cross-validation for soft-margin penalty selection. AUROC values and $C$ are displayed to two decimal places.}
-\label{tab:soft-nested}
-\small
-\input{output/tables/soft_margin_nested_cv_table.tex}
-\end{table}
-
-\subsection{Soft-Margin Solution on the Project Dataset}
-
-The final full-data grid search also selected $C=0.01$, with mean validation
-AUROC $0.95$. Figure~\ref{fig:soft-grid-roc} shows both the validation curve
-over $C$ and the nested out-of-fold ROC curve. The nested out-of-fold AUROC is
-$0.95$, with accuracy, sensitivity, and specificity all approximately $0.86$
-at decision threshold zero. Unlike the earlier squared-hinge result, these
-numbers are generated by the explicit linear soft-margin primal--dual model
-defined in this section.
-
-The fitted standardized-space coefficients in
-Table~\ref{tab:soft-coefficients} give the final linear scoring function.
-Their signs describe the direction of the score after the stated preprocessing
-but should not be interpreted as causal clinical effects.
-
-\begin{table}[H]
-\centering
-\caption{Final standardized-space soft-margin coefficients at $C=0.01$.}
-\label{tab:soft-coefficients}
-\input{output/tables/soft_margin_coefficients_table.tex}
-\end{table}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.98\textwidth]{output/figures/linear_soft_margin_grid_roc.pdf}
-    \caption{Soft-margin model selection and validation. Panel (a) reports mean five-fold validation AUROC with one standard deviation across folds for every candidate $C$; the dashed line marks the selected value. Panel (b) reports the nested out-of-fold ROC obtained when $C$ is selected inside each outer training fold.}
-    \label{fig:soft-grid-roc}
-\end{figure}
-
-The full-data solution contains 82 support vectors and 77 observations with
-positive slack, with $\sum_i\xi_i=46.89$. Substitution into the primal gives
-\begin{equation}
-\begin{aligned}
-p^*
-&=\frac12\lVert w\rVert_2^2+C\sum_i\xi_i\\
-&=\frac12(0.33)+(0.01)(46.89)\\
-&\approx0.63.
-\end{aligned}
-\end{equation}
-The dual calculation gives $d^*\approx0.63$, and the full-precision
-primal--dual gap is $4.85\times10^{-10}$. The remaining numerical checks are
-$|\sum_i\alpha_i t_i|=2.78\times10^{-17}$ and a zero weight-reconstruction
-residual at stored precision. The two maximum complementary-slackness
-residuals are $2.35\times10^{-10}$ and $8.57\times10^{-11}$, confirming the
-KKT conditions to solver tolerance. Table~\ref{tab:soft-summary} summarizes
-the model-selection and optimization results.
-
-\begin{table}[H]
-\centering
-\caption{Soft-margin model-selection, validation, and optimization summary.}
-\label{tab:soft-summary}
-\input{output/tables/soft_margin_summary_table.tex}
-\end{table}
-
-All full-precision grid-search results, nested predictions, coefficients,
-support-vector multipliers, slacks, and primal--dual checks are written under
-\path{output/csv/} by \path{scripts/linear_soft_margin_svm.py}. Tables in this
-section and both panels of Figure~\ref{fig:soft-grid-roc} are generated from
-those Python outputs.
-
-The penalty $C$ is selected by the grid search of Figure~\ref{fig:c-grid}:
-validation AUROC is highest at the strongly regularised end and the
-training--validation gap is smallest there, so $C=0.01$ is preferred.
-Figure~\ref{fig:soft-pareto} recasts the same grid as a Pareto trade-off
-between validation performance and overfitting, on which $C=0.01$ is the single
-non-dominated point. Figure~\ref{fig:soft-boundary} shows the resulting
-soft-margin boundary in the first two principal components: the separating line
-passes straight through the region where the two subtypes overlap, accepting
-the misclassifications it cannot avoid and charging for them through the slack
-variables.
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{output/figures/fig_step3_c_grid.pdf}
-    \caption{Grid search for the penalty $C$. Mean five-fold validation AUROC
-    (with training AUROC for reference) across the $C$ grid; the selected value
-    $C=0.01$ is circled. Stronger regularisation generalises best on this
-    overlapping data.}
-    \label{fig:c-grid}
-\end{figure}
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{output/figures/fig_step3_pareto.pdf}
-    \caption{The same grid as a Pareto trade-off between mean validation AUROC
-    (higher is better) and the train--validation AUROC gap (lower is better).
-    Points are coloured by $\log_{10}C$; $C=0.01$ (star) is the single
-    Pareto-optimal setting.}
-    \label{fig:soft-pareto}
-\end{figure}
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.72\textwidth]{output/figures/fig_step3c_pc_boundary.pdf}
-    \caption{Fitted soft-margin decision boundary in the first two principal
-    components, with the $\pm1$ margins and the circled support vectors. The
-    boundary is an illustrative two-dimensional fit; the reported model is
-    trained on all ten features.}
-    \label{fig:soft-boundary}
-\end{figure}
-
-\subsection{Solving the Primal Directly: the Stochastic Gradient Method}
-\label{sec:sgm}
-
-The dual quadratic program above is solved in this report by \texttt{scikit-learn}'s
-SMO routine. The soft-margin \emph{primal} can instead be minimized directly,
-and because it is a regularized finite sum over the $m$ training points it is a
-natural target for the stochastic gradient method (SG). Writing the homogeneous
-primal in the finite-sum form
-\begin{equation}
-    \min_{w\in\mathbb{R}^{p}}\ \frac{1}{m}\sum_{i=1}^{m}\max\!\bigl(0,\,1-t_i\,w^\top x_i\bigr)
-    +\frac{\lambda}{2}\lVert w\rVert^2,
-\end{equation}
-each step samples one index $k$ uniformly at random and takes a subgradient step.
-The hinge term is non-differentiable at its kink, so the lecture uses its
-subgradient: $0\in\partial\ell$ whenever $t_k\,w^\top x_k\ge 1$, and
-$\partial\ell=-t_k x_k$ otherwise. Adding the subgradient of the
-$\tfrac{\lambda}{2}\lVert w\rVert^2$ regularizer and taking the Pegasos step size
-$\eta_k=1/(\lambda k)$ gives the update
-\begin{equation}
-    w_{k+1}=w_k-\eta_k\, g_k,\qquad
-    g_k=\begin{cases}
-        \lambda w_k, & t_k\,w_k^\top x_k\ge 1,\\[2pt]
-        \lambda w_k-t_k x_k, & t_k\,w_k^\top x_k<1.
-    \end{cases}
-\end{equation}
-The $\tfrac{\lambda}{2}\lVert w\rVert^2$ term makes the objective $\lambda$-strongly
-convex \cite{lec-strongconvex}, and the intercept is recovered by appending a
-constant feature to each $x_i$; this is the stochastic gradient method of the
-course lecture \cite{lec-sgm} applied to the regularised hinge objective.
-Figure~\ref{fig:sgm-convergence} shows the run on the standardized project
-data ($m=114$, $\lambda=0.01$). The reference optimum $P^\star=0.250$ is obtained
-from a primal hinge solver; the SG direction agrees with that solution to a cosine
-similarity of $0.99$ and reproduces its discrimination (AUROC $0.958$ versus
-$0.955$), confirming that the stochastic primal route reaches the same separating
-hyperplane as the dual solver.
-
-\begin{table}[htbp]
-\centering
-\caption{Steps for the stochastic gradient method to reach a given optimality gap
-$P(w_k)-P^\star$ on the project data, measured on the best-so-far iterate. One
-epoch is a full pass over the $m=114$ points.}
-\label{tab:sgm-steps}
-\small
-\begin{tabular}{lrr}
-\toprule
-Target optimality gap & Steps & Epochs\\
-\midrule
-Within $5\%$ of $P^\star$ & $1{,}653$ & $\approx 14$\\
-Within $1\%$ of $P^\star$ & $7{,}591$ & $\approx 67$\\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=\textwidth]{output/figures/sgm_primal_convergence.pdf}
-    \caption{Stochastic gradient method on the soft-margin primal. Left: the raw
-    iterate $P(w_k)$ (thin) fluctuates around the optimum $P^\star$ because each
-    step uses a single random point, while the running (Polyak) average
-    $P(\bar w_k)$ converges smoothly. Right: the optimality gap
-    $P(w_k)-P^\star$ on log--log axes, with the best-so-far gap crossing $5\%$
-    of $P^\star$ at about step $1{,}650$ ($\approx14$ epochs) and $1\%$ at about
-    step $7{,}600$ ($\approx67$ epochs).}
-    \label{fig:sgm-convergence}
-\end{figure}
-
-The convergence behaviour is worth reading carefully. For a strongly convex
-objective the stochastic gradient analysis gives a clean linear rate only in the
-interpolation regime, where a single $w$ drives every per-point loss to zero so
-that the gradient-noise floor $B$ vanishes. The project data are \emph{not}
-linearly separable---this is precisely what the infeasibility certificate of the
-next section establishes---so the hinge loss cannot be driven to zero, the noise
-floor is strictly positive ($B>0$), and the iterate settles into a persistent band
-around the optimum rather than converging geometrically. The averaged iterate is
-what supplies a stable solution, and the observed sublinear, noisy decay in
-Figure~\ref{fig:sgm-convergence} is the expected signature of this $B>0$ regime.
-
-\section{Detailed Hard-Margin Numerical Certificate}
-
-\subsection{Full-Data Infeasibility Certificate}
-\label{sec:full-certificate}
-
-Three mutually reinforcing checks are used on the complete processed dataset,
-in the order direct solver status, algebraic Farkas certificate, and geometric
-convex-hull interpretation. Here
-$U\in\mathbb{R}^{114\times11}$ contains the ten standardized features and the
-intercept column.
-
-\paragraph{Homework-style direct solver verification.}
-The primal model supplied to a constrained solver is
-\begin{equation}
-\begin{aligned}
-\min_{w,b}\quad &\frac12\lVert w\rVert_2^2\\
-\text{subject to}\quad &U\theta\geq\mathbf{1}.
-\end{aligned}
-\end{equation}
-Before an objective can be minimized, the solver must find a point satisfying
-all 114 constraints. The implementation therefore first solves the equivalent
-feasibility model $\min_\theta 0$ subject to $-U\theta\leq-\mathbf{1}$; changing
-the objective cannot make an empty feasible set nonempty. The direct solver
-audit returned the result in Table~\ref{tab:direct-solver}.
-
-\begin{table}[htbp]
-\centering
-\caption{Direct full-data primal feasibility check.}
-\label{tab:direct-solver}
-\input{output/tables/full_data_solver_audit_table.tex}
-\end{table}
-
-Thus the correct statement is that the solver returns an \emph{infeasible
-status}; it does not return an ``infeasible solution.'' No primal solution
-exists for the solver to report. This is the direct computational verification
-used in the homework-style workflow.
-
-\paragraph{Independent certificate.}
-The solver status is then strengthened by a direct, independently checkable
-proof. Farkas' lemma states that the system
-$U\theta\geq\mathbf{1}$ is infeasible if there is a vector
-$\lambda\in\mathbb{R}^{114}$ satisfying
-\begin{equation}
-    \lambda\geq0,\qquad
-    U^\top\lambda=0,\qquad
-    \mathbf{1}^\top\lambda=1.
-\end{equation}
-The auxiliary linear program for this certificate returned twelve nonzero
-weights, shown in Table~\ref{tab:farkas-certificate}; the other 102 weights
-are zero. Displayed weights use two decimal places as requested. Every check
-uses the unrounded values in the companion CSV file, which also contains a
-separate two-decimal display column; the displayed values alone should not be
-used to recompute the certificate.
-
-\begin{table}[htbp]
-\centering
-\caption{Nonzero weights in the full-data Farkas infeasibility certificate.}
-\label{tab:farkas-certificate}
-\scriptsize
-\input{output/tables/farkas_certificate_table.tex}
-\end{table}
-
-The full-precision numerical audit gives
-\begin{equation}
-\begin{aligned}
-\mathbf{1}^\top\lambda&=1.00,\\
-\sum_{i:y_i=+1}\lambda_i&=0.50,\\
-\sum_{i:y_i=-1}\lambda_i&=0.50,\\
-\lVert U^\top\lambda\rVert_\infty&=2.50\times10^{-16}.
-\end{aligned}
-\end{equation}
-The first three quantities are displayed to two decimal places. The final
-residual is retained in scientific notation because rounding it to $0.00$
-would hide the numerical accuracy of the certificate. Now suppose, for
-contradiction, that a hard-margin parameter $\theta$ satisfied
-$U\theta\geq\mathbf{1}$. Nonnegativity of $\lambda$ would imply
-\begin{equation}
-\underbrace{(U^\top\lambda)^\top\theta}_{0}
-=\lambda^\top U\theta
-\geq\lambda^\top\mathbf{1}
-=1,
-\end{equation}
-which is the contradiction $0\geq1$. Therefore the complete hard-margin
-constraint system has no feasible solution. In fact, the twelve observations
-in Table~\ref{tab:farkas-certificate} already provide a sufficient
-infeasible subsystem.
-
-The same certificate has a geometric interpretation. Because the intercept
-component of $U^\top\lambda=0$ gives equal class masses of $0.5$, define
-$\beta_i^+=2\lambda_i$ for UPA and $\beta_i^-=2\lambda_i$ for BPA. Each set of
-coefficients is nonnegative and sums to one, while the feature components of
-$U^\top\lambda=0$ give
-\begin{equation}
-    \sum_{i:y_i=+1}\beta_i^+x_i
-    =\sum_{i:y_i=-1}\beta_i^-x_i.
-\end{equation}
-Thus the standardized UPA and BPA convex hulls contain the same point. Their
-largest coordinate difference is only $6.66\times10^{-16}$, as illustrated
-in Figure~\ref{fig:full-certificate}. Intersecting convex hulls cannot be
-strictly separated by a hyperplane.
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.98\textwidth]{output/figures/full_data_infeasibility_certificate.pdf}
-    \caption{Full-data infeasibility certificate. Panel (a) shows the identical ten-dimensional point obtained as a convex combination of UPA observations and as a convex combination of BPA observations; the plot compares coordinates directly and is not a two-dimensional projection. Panel (b) shows the twelve nonzero Farkas weights.}
-    \label{fig:full-certificate}
-\end{figure}
-
-Two complementary illustrations make the certificate intuitive.
-Figure~\ref{fig:farkas-schematic} contrasts the two systems of Farkas' lemma:
-either a separating hyperplane exists (System~A), or a nonnegative combination
-of the constraints proves a contradiction $0\ge1$ (System~B), never both.
-Figure~\ref{fig:hull-overlap} shows the same fact geometrically on the project
-data projected to its first two principal components: the convex hulls of the
-two subtypes overlap, and overlapping hulls cannot be separated by any
-hyperplane. The theory-of-the-alternative structure behind this argument
-follows the treatment of duality and first-order optimality in the course
-lectures \cite{lec-duality,lec-firstorder}.
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.95\textwidth]{output/figures/farkas_lemma_schematic.pdf}
-    \caption{Farkas' lemma as a theorem of the alternative. System~A (left): the
-    classes are separable, so a hyperplane exists. System~B (right): the classes
-    overlap, so a nonnegative weighting of the points certifies infeasibility
-    ($0\ge1$). Exactly one system is solvable; for the project data it is
-    System~B.}
-    \label{fig:farkas-schematic}
-\end{figure}
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.72\textwidth]{output/figures/convex_hull_overlap_2d.pdf}
-    \caption{Convex hulls of the UPA and BPA subtypes in the first two principal
-    components of the standardised data. The hulls overlap, so no separating
-    hyperplane exists---the geometric statement of the infeasibility certificate.
-    The projection is for visualisation; the certificate itself is computed in
-    the full ten-dimensional space.}
-    \label{fig:hull-overlap}
-\end{figure}
-
-Consequently, for the current preprocessed project data,
-\begin{equation}
-    \boxed{\text{the UPA and BPA classes are not linearly separable}.}
-\end{equation}
-The certificate, CSV output, numerical checks, and figure are reproduced by
-\path{scripts/build_full_data_infeasibility_certificate.py}. The script writes
-four machine-readable audit files under \path{output/csv/}: the direct solver
-status, sparse Farkas vector, two convex-hull representations, and numerical
-residual checks. The two tables above are generated from the same Python
-results and then included in this PDF.
-
-\subsection{Supplementary Ten-Observation Spreadsheet Illustration}
+\subsection{Ten-Observation Spreadsheet Illustration}
 \label{sec:worked-excel}
 
 To make the matrix constraint concrete, a self-contained teaching table was constructed from the first ten observations in the project spreadsheet. The selection rule is transparent: scan from top to bottom, take the first five UPA and first five BPA observations, and restore source-row order. In this dataset these are exactly rows 2--11. The four hormone variables are log-transformed and all ten features are standardized using statistics from these ten rows. No selected value is missing, so median imputation is inactive.
@@ -1190,528 +1811,13 @@ Figure~\ref{fig:worked-scores} plots the raw scores rather than the signed margi
 
 This feasible subsystem does not imply that the complete cohort is separable. Removing 104 constraints can leave a feasible problem even when adding the remaining constraints makes the full system infeasible. No ROC, AUROC, sensitivity, or specificity is calculated from this ten-row in-sample illustration.
 
-\subsection{Cross-Validation and ROC Rule}
-
-The feasibility audit uses stratified five-fold cross-validation with shuffling and random seed zero. All preprocessing operations are fitted inside the training fold. In each fold, the hard-margin classifier is fitted only if the training constraints are feasible. Held-out decision scores would then be pooled to construct the ROC curve, and AUROC would summarize discrimination across score thresholds.
-
-This ordering is important. ROC analysis requires a fitted scoring function for every held-out observation. If a training fold is infeasible, there are no valid hard-margin parameters for that fold and therefore no legitimate out-of-fold scores. Reporting an ROC curve in that situation would require silently changing either the model or the data.
-
-The worked subsystem in Section~\ref{sec:worked-excel} is not a cross-validation split and is not used to generate ROC results.
-
-\section{Kernel Trick: RBF Soft-Margin SVM}
-\label{sec:kernel-rbf}
-
-\subsection{From a Linear Boundary to a Kernel Boundary}
-
-The strong linear soft-margin result does not prove that a nonlinear boundary
-is unnecessary; it only establishes a competitive baseline. The kernel trick
-tests nonlinear structure without explicitly constructing a potentially
-high-dimensional feature vector. Let
-$\varphi(x)$ map an observation into a feature space $\mathcal{H}$. The
-soft-margin primal in that space is
-\begin{equation}
-\begin{aligned}
-\min_{w,b,\xi}\quad
-&\frac12\lVert w\rVert_{\mathcal H}^2+C\sum_{i=1}^{m}\xi_i\\
-\text{subject to}\quad
-&t_i(\langle w,\varphi(x_i)\rangle_{\mathcal H}+b)
-\geq1-\xi_i,\qquad \xi_i\geq0.
-\end{aligned}
-\end{equation}
-The corresponding dual depends on transformed observations only through inner
-products:
-\begin{equation}
-\begin{aligned}
-\max_{\alpha}\quad
-&\sum_i\alpha_i-
-\frac12\sum_i\sum_j\alpha_i\alpha_jt_it_jK(x_i,x_j)\\
-\text{subject to}\quad
-&0\leq\alpha_i\leq C,\qquad \sum_i\alpha_it_i=0,
-\end{aligned}
-\end{equation}
-where
-$K(x_i,x_j)=\langle\varphi(x_i),\varphi(x_j)\rangle_{\mathcal H}$.
-The fitted score is
-\begin{equation}
-    f(x)=\sum_{i\in\mathcal S}\alpha_i t_iK(x_i,x)+b,
-\end{equation}
-so only the support-vector set $\mathcal S$ is needed at prediction time.
-Kernelization does not replace the soft margin: $C$ still bounds each dual
-multiplier and controls the penalty for overlap.
-
-This analysis uses the radial basis function (RBF) kernel
-\begin{equation}
-    K(x_i,x_j)=\exp[-\gamma\lVert x_i-x_j\rVert_2^2].
-\end{equation}
-Small $\gamma$ produces a smooth, slowly varying decision surface and tends
-toward linear-like behavior over a limited data region. Large $\gamma$ makes
-each observation influential only in a narrow neighborhood, allowing a highly
-curved boundary that can memorize a small training cohort. Therefore $C$ and
-$\gamma$ must be tuned jointly.
-
-\subsection{Validity of the RBF Kernel: Positive Semi-Definiteness and
-Feature Map}
-\label{sec:rbf-psd}
-
-Everything above presumes that some feature map $\varphi$ exists with
-$K(x,y)=\langle\varphi(x),\varphi(y)\rangle_{\mathcal H}$. That is not
-automatic: an arbitrary similarity function need not be an inner product in
-any space, and if it is not, the dual loses concavity and the optimization
-guarantees of Section~\ref{sec:slater} no longer apply. This subsection
-establishes the two properties that license the RBF kernel.
-
-A symmetric kernel $K$ is \emph{positive semi-definite} (PSD) if for every
-finite set $x_1,\ldots,x_m$ the Gram matrix $G_{ij}=K(x_i,x_j)$ satisfies
-$c^\top Gc\geq0$ for all $c\in\mathbb{R}^m$. Four standard closure rules are
-used \cite{boyd2004,lec-statlearn}: if $K_1,K_2$ are PSD then (K1) $\lambda_1K_1+\lambda_2K_2$
-is PSD for $\lambda_1,\lambda_2\geq0$; (K2) the product $K_1K_2$ is PSD, by the
-Schur product theorem; (K3) $K(x,y)=f(x)f(y)$ is PSD for any real $f$; and
-(K4) a pointwise limit of PSD kernels is PSD.
-
-\paragraph{The RBF kernel is PSD.}
-The linear kernel is PSD because
-\begin{equation}
-    c^\top Gc=\sum_{i}\sum_{j}c_ic_j\,x_i^\top x_j
-    =\Bigl\lVert\sum_{i}c_ix_i\Bigr\rVert_2^2\geq0,
-\end{equation}
-so $(x^\top y)^k$ is PSD for every integer $k\geq0$ by repeated application of
-(K2). The exponential series has non-negative coefficients, hence
-\begin{equation}
-    \exp\bigl[2\gamma\,x^\top y\bigr]
-    =\sum_{k=0}^{\infty}\frac{(2\gamma)^k}{k!}\,(x^\top y)^k
-\end{equation}
-is a limit of non-negative combinations of PSD kernels and is PSD by (K1) and
-(K4). Expanding the squared norm as
-$\lVert x-y\rVert_2^2=\lVert x\rVert_2^2-2x^\top y+\lVert y\rVert_2^2$
-factors the RBF kernel into
-\begin{equation}
-    \exp\bigl[-\gamma\lVert x-y\rVert_2^2\bigr]
-    =\underbrace{e^{-\gamma\lVert x\rVert_2^2}
-      e^{-\gamma\lVert y\rVert_2^2}}_{\text{PSD by (K3)}}
-    \cdot
-    \underbrace{\exp\bigl[2\gamma\,x^\top y\bigr]}_{\text{PSD}},
-\end{equation}
-which is PSD by (K2). The Gram matrix is therefore PSD for any dataset and any
-$\gamma>0$.
-
-\paragraph{An explicit feature map.}
-The same expansion produces $\varphi$ directly. Writing the multinomial
-expansion of $(x^\top y)^k$ over multi-indices
-$\alpha\in\mathbb{N}_0^{p}$, with $\lvert\alpha\rvert=\sum_j\alpha_j$,
-$\alpha!=\prod_j\alpha_j!$ and $x^\alpha=\prod_jx_j^{\alpha_j}$, gives
-\begin{equation}
-    \exp\bigl[2\gamma\,x^\top y\bigr]
-    =\sum_{\alpha\in\mathbb{N}_0^{p}}
-      \frac{(2\gamma)^{\lvert\alpha\rvert}}{\alpha!}\,x^\alpha y^\alpha .
-\end{equation}
-Reinstating the two Gaussian factors and splitting each term symmetrically
-yields $K(x,y)=\langle\varphi(x),\varphi(y)\rangle$ with components
-\begin{equation}
-    \varphi_\alpha(x)=e^{-\gamma\lVert x\rVert_2^2}
-    \sqrt{\frac{(2\gamma)^{\lvert\alpha\rvert}}{\alpha!}}\;x^\alpha,
-    \qquad \alpha\in\mathbb{N}_0^{p}.
-\end{equation}
-The index set is all multi-indices, so $\mathcal H$ is
-infinite-dimensional: $\varphi$ contains every monomial in the $p$ features,
-damped by $e^{-\gamma\lVert x\rVert_2^2}$ and weighted so the series converges.
-
-\paragraph{Consequences.}
-Three points follow. First, $\varphi$ can never be formed explicitly, which is
-exactly why the kernel trick is required rather than merely convenient: the
-scalar $K(x_i,x_j)$ stands in for an inner product between infinite vectors.
-Second, PSD of the Gram matrix makes the dual objective concave, so the
-kernelized problem is a convex quadratic program with a unique optimum rather
-than a surface with spurious local maxima. Third, the primal in $\mathcal H$ is
-convex with affine constraints and admits the feasible point
-$(w,b,\xi)=(0,0,\mathbf{1})$, so Slater's condition holds exactly as in
-Section~\ref{sec:slater}; the primal--dual gap of $2.2\times10^{-11}$ reported
-for the fitted RBF model is therefore a meaningful check that the solver
-reached that optimum.
-
-\subsection{Joint Grid Search and Nested Validation}
-
-The RBF analysis uses the same log transformation, median imputation,
-standardization, stratified folds, and random seed as the linear analysis. The
-joint grid contains nine values of $C$ from $0.01$ to $100.00$ and nine values
-of $\gamma$ from $1.00\times10^{-3}$ to $10.00$, both at half-logarithmic
-spacing. Thus each inner search evaluates 81 parameter pairs by mean AUROC.
-
-In every outer fold, preprocessing and the complete 81-point grid search are
-fitted using only the outer training data. Table~\ref{tab:rbf-nested} shows
-that the selected pairs vary substantially across folds. This instability is
-itself relevant: with only 114 observations, the apparently best nonlinear
-scale depends on which observations enter the training set.
-
-\begin{table}[H]
-\centering
-\caption{Nested cross-validation for joint RBF tuning. AUROC values and parameter displays use two decimals or two-decimal scientific notation.}
-\label{tab:rbf-nested}
-\small
-\input{output/tables/rbf_nested_cv_table.tex}
-\end{table}
-
-The full-data grid search selected $C=0.01$ and
-$\gamma=1.00\times10^{-3}$. This $\gamma$ is the lower boundary of the
-prespecified grid, indicating that the validation criterion favors the
-smoothest candidate rather than a strongly nonlinear boundary. At the
-selected pair, mean training AUROC is $0.96$ and mean validation AUROC is
-$0.95$, a gap of only $0.01$. The induced-feature-space primal and dual
-objectives both round to $1.12$, with full-precision duality gap
-$2.23\times10^{-11}$.
-
-\begin{table}[H]
-\centering
-\caption{Full-data RBF model-selection and optimization audit.}
-\label{tab:rbf-summary}
-\input{output/tables/rbf_summary_table.tex}
-\end{table}
-
-\subsection{Overfitting Diagnostic}
-
-The selected RBF model is not strongly overfit, but the grid contains a clear
-demonstration of the risk. Figure~\ref{fig:rbf-grid} compares validation AUROC
-with the train--validation gap. At $C=0.01$ and $\gamma=10.00$, training AUROC
-is $1.00$ while validation AUROC falls to $0.54$, giving a gap of $0.46$.
-Across all values of $C$ at $\gamma=10.00$, training AUROC remains $1.00$ but
-validation AUROC is only $0.54$--$0.59$. The high-$\gamma$ kernel has therefore
-memorized the training folds without learning a stable decision rule.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.98\textwidth]{output/figures/rbf_kernel_grid_heatmaps.pdf}
-    \caption{Joint RBF grid search. Panel (a) shows mean validation AUROC. Panel (b) shows mean training AUROC minus mean validation AUROC; large positive values indicate overfitting. The white star marks the selected full-data pair $C=0.01$, $\gamma=1.00\times10^{-3}$.}
-    \label{fig:rbf-grid}
-\end{figure}
-
-This result illustrates why training performance cannot be used to choose a
-kernel. A nonlinear model can achieve perfect training ranking precisely where
-its held-out ranking is close to chance. Nested validation, the
-train--validation gap, and the position of the selected point on the grid must
-be interpreted together.
-
-Figure~\ref{fig:rbf-boundary} shows the RBF decision surface in the same
-principal-component projection as the linear boundary of
-Figure~\ref{fig:soft-boundary}. The kernel lets the boundary curve, but the two
-convex hulls still overlap: the added flexibility bends the surface around
-individual points without producing a clean separation, which is why it does
-not improve held-out discrimination.
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.72\textwidth]{output/figures/fig_step4_rbf_pc_boundary.pdf}
-    \caption{RBF-kernel decision boundary in the first two principal components,
-    to be compared with the straight linear boundary of
-    Figure~\ref{fig:soft-boundary}. The boundary curves but the subtype hulls
-    still overlap. Illustrative two-dimensional fit at a moderate $\gamma$; the
-    tuned model selected a much smoother $\gamma$.}
-    \label{fig:rbf-boundary}
-\end{figure}
-
-\subsection{Pareto Frontier of Validation Performance and Overfitting}
-
-A Pareto analysis makes this trade-off explicit. The two objectives are to
-maximize mean validation AUROC and minimize the train--validation AUROC gap.
-Grid setting A dominates setting B when A has validation AUROC no smaller and
-an overfitting gap no larger, with at least one strict improvement. A setting
-is Pareto-optimal when no other setting dominates it. The hyperparameters
-$C$ and $\gamma$ identify the grid settings; they are not themselves the two
-Pareto objectives.
-
-Figure~\ref{fig:pareto-frontier} plots every evaluated setting. For the linear
-soft-margin grid, the frontier collapses to one point:
-\begin{equation}
-    C=0.01,\qquad
-    \operatorname{AUROC}_{\mathrm{val}}=0.9452,\qquad
-    \operatorname{gap}=0.0141.
-\end{equation}
-Every other tested linear value of $C$ has both a lower validation AUROC and a
-larger train--validation gap.
-
-The RBF grid has a four-setting Pareto plateau. All four use
-$\gamma=0.00316$ and
-\begin{equation}
-    C\in\{0.01,0.0316,0.10,0.3162\},
-\end{equation}
-with validation AUROC $0.9511$ and gap $0.0083$ to stored precision. Because
-their two Pareto outcomes are indistinguishable, the smallest value $C=0.01$
-is the natural simplicity tie-break. The ordinary grid search reported
-$\gamma=0.001$ because it has the same maximum validation AUROC and appears
-first among tied scores; the Pareto diagnostic instead identifies
-$\gamma=0.00316$ because its train--validation gap is smaller by approximately
-$2.06\times10^{-6}$. This difference is numerically negligible and does not
-constitute evidence of a meaningful nonlinear advantage.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.98\textwidth]{output/figures/svm_grid_pareto_frontier.pdf}
-    \caption{Pareto analysis of the linear and RBF tuning grids. The horizontal axis is the train--validation AUROC gap, so smaller values are preferred; the vertical axis is mean validation AUROC, so larger values are preferred. Red stars mark non-dominated settings. In panel (a), color represents $\log_{10}C$. In panel (b), color represents $\log_{10}\gamma$ and marker size increases with $C$.}
-    \label{fig:pareto-frontier}
-\end{figure}
-
-This frontier is a tuning diagnostic computed from the cross-validated grid;
-it is not an independent performance estimate. Selecting a point from the
-frontier and then quoting the same validation folds would be optimistic. The
-final linear-versus-RBF conclusion therefore continues to use the untouched
-nested outer folds in the next subsection.
-
-\subsection{Comparison with the Linear Soft-Margin Model}
-
-The primary comparison uses mean outer-fold AUROC because each outer fold is
-untouched by its corresponding parameter search. The linear model achieves
-$0.95\pm0.04$, whereas the RBF model achieves $0.94\pm0.04$. The RBF-minus-linear
-difference in mean outer AUROC is $-3.17\times10^{-3}$, so there is no observed
-improvement from the kernel. The RBF accuracy is $0.82$, sensitivity is
-$0.73$, and specificity is $0.91$, compared with approximately $0.86$ for all
-three quantities under the linear model.
-
-\begin{table}[H]
-\centering
-\caption{Nested cross-validation comparison of linear and RBF soft-margin SVMs. Mean outer-fold AUROC is the primary model-selection comparison.}
-\label{tab:kernel-comparison}
-\small
-\input{output/tables/kernel_comparison_table.tex}
-\end{table}
-
-The pooled RBF AUROC is shown for completeness but is not the primary estimate.
-Different outer folds selected different $(C,\gamma)$ pairs, so their raw
-decision scores have different scales and pooling can alter cross-fold ranks.
-The mean of the five independently evaluated outer-fold AUROCs avoids this
-scale-comparability problem. Figure~\ref{fig:linear-rbf-roc} therefore averages
-fold-specific ROC curves on a common false-positive-rate grid.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.70\textwidth]{output/figures/linear_vs_rbf_nested_roc.pdf}
-    \caption{Mean nested outer-fold ROC curves for the linear and RBF soft-margin models. Shaded bands show one standard deviation across the five outer folds.}
-    \label{fig:linear-rbf-roc}
-\end{figure}
-
-The present data do not support retaining the RBF kernel. It adds a second
-hyperparameter, produces unstable fold-specific choices, selects the smoothest
-available $\gamma$ on the full dataset, and does not improve nested AUROC.
-With only 114 synthetic observations, a flexible high-$\gamma$ boundary has a
-substantial overfitting risk. The linear soft-margin model is therefore the
-preferred specification unless a larger independent dataset demonstrates a
-reproducible nonlinear improvement.
-
-The complete grid, nested predictions, support-vector audit, primal--dual
-checks, comparison table, and figures are generated by
-\path{scripts/kernel_rbf_svm.py} and written under \path{output/csv/} and
-\path{output/figures/}.
-
-\section{Results}
-
-The feasible ten-row calculation in Table~\ref{tab:worked-excel} is an algebraic illustration only. The report's feasibility conclusion is based on the complete standardized dataset and all five cross-validation training folds. Every full analysis problem was declared infeasible by the HiGHS linear-programming solver, as summarized in Table~\ref{tab:feasibility}.
-
-\begin{table}[htbp]
-\centering
-\caption{Linear hard-margin feasibility audit on the synthetic CGH-like cohort.}
-\label{tab:feasibility}
-\input{output/tables/linear_hard_margin_feasibility_table.tex}
-\end{table}
-
-These outcomes show that the UPA and BPA observations overlap in the selected
-ten-dimensional linear feature space. This is a property of the data geometry
-rather than a failure of the quadratic optimizer.
-Section~\ref{sec:full-certificate} strengthens the solver status with an
-explicit Farkas certificate: a nonnegative vector satisfies
-$U^\top\lambda\approx0$ and $\mathbf{1}^\top\lambda=1$, proving that the
-standardized class convex hulls intersect. Consequently, the hard-margin
-primal cannot be fitted and no hard-margin ROC exists.
-
-The soft-margin model converts this empty feasible set into a feasible convex
-program by allowing penalized slack. Grid search selected $C=0.01$. Its mean
-five-fold validation AUROC was $0.95$, while nested cross-validation produced
-out-of-fold AUROC $0.95$, accuracy $0.86$, sensitivity $0.86$, and specificity
-$0.86$. The full-data primal and dual objectives both round to $0.63$, with a
-full-precision duality gap of $4.85\times10^{-10}$. These soft-margin results
-are kept distinct from the infeasible hard-margin formulation.
-
-The RBF experiment did not improve the primary nested estimate. Its mean
-outer-fold AUROC was $0.94\pm0.04$, compared with $0.95\pm0.04$ for the linear
-soft-margin model. The selected full-data pair was $C=0.01$ and
-$\gamma=1.00\times10^{-3}$, with $\gamma$ at the smoothest boundary of the
-grid. High-$\gamma$ combinations achieved training AUROC $1.00$ while falling
-as low as validation AUROC $0.54$, demonstrating substantial overfitting. The
-Pareto audit retained one linear setting and a four-setting RBF plateau when
-validation AUROC was maximized jointly with minimization of the
-train--validation gap; it did not change the nested-CV preference for the
-linear model.
-
-\section{Discussion and Limitations}
-
-The derivative analysis confirms that the hard-margin primal is a simple convex quadratic program: its objective has gradient $[w^\top,0]^\top$ and positive-semidefinite Hessian $\operatorname{diag}(I_p,0)$, while each constraint is affine. These properties make any feasible instance globally tractable. They do not, however, guarantee that a feasible point exists.
-
-The feasible teaching subset does not contradict the full-data result: feasibility is lost when the remaining 104 margin constraints are added.
-
-The negative hard-margin feasibility result is substantively consistent with
-the application. Clinical measurements from UPA and BPA patients can overlap
-because of biological heterogeneity, measurement variation, and incomplete
-diagnostic information. A hard-margin linear model assumes away this overlap.
-The soft-margin formulation is therefore not a workaround for a failed
-solver; it is a different, explicitly stated optimization model whose slack
-variables quantify the overlap.
-
-The selected value $C=0.01$ lies at the lower end of the prespecified grid.
-This indicates that stronger regularization was preferred to aggressively
-penalizing every violation. The neighboring value $C=0.03$ produced a similar
-mean validation AUROC, so the exact numerical optimum should not be treated as
-a universal clinical constant. It is specific to this feature scaling,
-candidate grid, synthetic cohort, folds, and selection metric. Nested
-cross-validation reduces selection optimism but does not replace external
-validation.
-
-The RBF comparison reinforces this limitation. Jointly searching 81
-$(C,\gamma)$ combinations increases the opportunity to select noise, and the
-preferred pair varied substantially between outer folds. The nested analysis
-found no performance gain, while the high-$\gamma$ region produced perfect
-training AUROC and near-chance validation. Model complexity should therefore
-not be justified by training fit. On this dataset, the linear model offers
-similar or better validation with fewer tuning degrees of freedom and a more
-interpretable standardized-space score.
-
-\subsection{Statistical Comparison of the Linear and RBF Models}
-\label{sec:stat-comparison}
-
-The qualitative statement that the RBF kernel gives ``no performance gain'' is
-supported here by two formal analyses, which must be read against two distinct
-metrics.
-
-\paragraph{Pooled out-of-fold discrimination.}
-On the pooled out-of-fold decision scores, the linear soft-margin AUROC
-($0.947$) exceeds the RBF AUROC ($0.851$) by $0.096$. A DeLong test for two
-correlated ROC curves gives $z=2.91$, $p=0.004$, with a $95\%$ confidence
-interval on the difference of $[0.031,\,0.161]$; a paired bootstrap over
-patients ($B=10{,}000$) agrees, with mean difference $+0.097$ and interval
-$[0.037,\,0.166]$ (Figure~\ref{fig:auroc-bootstrap}). This metric, however,
-pools scores produced by different tuned hyperparameters onto a single ROC
-curve, which understates the RBF model because its per-fold scores are not on a
-common scale. It should be read as a diagnostic of the pooled ranking, not as
-the primary head-to-head comparison.
-
-\paragraph{Mean outer-fold discrimination and seed robustness.}
-The fairer comparison uses the mean outer-fold AUROC, computed within each fold
-and then averaged, which was the primary reported metric. Repeating the full
-nested cross-validation under twenty different fold-assignment seeds, the linear
-and RBF mean outer-fold AUROC values track each other closely
-(Figure~\ref{fig:seed-robustness}). The mean difference is $+0.0002$
-($95\%$ CI $[-0.005,\,+0.006]$; paired $t=0.08$, $p=0.93$; Wilcoxon $p=0.75$),
-and the linear model equals or exceeds the RBF model in twelve of twenty seeds.
-The two models are therefore statistically indistinguishable on within-fold
-discrimination, and the direction of the tiny gap depends on the random split.
-
-\paragraph{Interpretation.}
-The two analyses are consistent: the RBF kernel never improves on the linear
-model, and on the fairer within-fold metric the difference is indistinguishable
-from zero. When two models achieve equivalent discrimination, the simpler model
-is preferred on grounds of parsimony, fewer tuning degrees of freedom, and a
-directly interpretable standardized-space score. This strengthens, and makes
-quantitative, the report's choice of the linear soft-margin SVM.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.82\textwidth]{output/figures/fig_stat_auroc_gap.png}
-    \caption{Paired bootstrap distribution ($B=10{,}000$) of the pooled
-    out-of-fold AUROC difference, linear minus RBF. The shaded band is the
-    $95\%$ percentile interval; it excludes zero. The accompanying DeLong test
-    gives $p=0.004$. This pooled metric favours the linear model but understates
-    the RBF model (see text).}
-    \label{fig:auroc-bootstrap}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=\textwidth]{output/figures/fig_stat_seed_robustness.png}
-    \caption{Seed-robustness of the fairer mean outer-fold AUROC. Panel (a):
-    linear and RBF values across twenty fold-assignment seeds. Panel (b): the
-    per-seed difference (linear minus RBF) with its mean and $95\%$ confidence
-    interval; the interval straddles zero ($p=0.93$), so the two models are
-    statistically indistinguishable on within-fold discrimination.}
-    \label{fig:seed-robustness}
-\end{figure}
-
-The analysis also uses synthetic rather than patient-level data. Its purpose is therefore methodological: it determines whether the requested optimization model is compatible with the supplied project dataset. It does not estimate clinical utility or external generalization.
-
-\section{Conclusion}
-
-This report first formulated PA subtype classification as a linear hard-margin
-SVM and showed, by solver status, Farkas' lemma, and intersecting convex hulls,
-that the complete dataset and every training fold are nonseparable. The
-hard-margin primal therefore has no feasible solution and cannot produce a
-valid ROC curve. The subsequent soft-margin primal introduces slack variables,
-while its dual replaces the hard-margin constraint $\alpha_i\geq0$ with the
-box constraint $0\leq\alpha_i\leq C$. Leakage-safe grid search selected
-$C=0.01$, and nested cross-validation yielded AUROC $0.95$. The optimized
-soft-margin primal and dual values agree to numerical tolerance. The combined
-analysis then tested an RBF kernel by jointly tuning $C$ and $\gamma$. The RBF
-mean outer-fold AUROC was $0.94$, slightly below the linear value of $0.95$,
-and highly localized kernels showed severe train--validation gaps. The linear
-soft-margin SVM is therefore preferred for the current dataset. This conclusion
-preserves the central distinctions: hard-margin infeasibility is a statement
-about data geometry, soft-margin optimization explicitly trades margin width
-against violations, and a kernel should be retained only when its nonlinear
-flexibility improves performance on data not used for tuning.
-
-\begin{thebibliography}{9}
-
-\bibitem{cortes1995}
-Cortes, C., and Vapnik, V. (1995).
-Support-vector networks.
-\textit{Machine Learning}, 20, 273--297.
-
-\bibitem{boyd2004}
-Boyd, S., and Vandenberghe, L. (2004).
-\textit{Convex Optimization}.
-Cambridge University Press.
-
-\bibitem{rossi2019}
-Rossi, G. P. (2019).
-Primary aldosteronism: JACC state-of-the-art review.
-\textit{Journal of the American College of Cardiology}, 74(22), 2799--2811.
-\url{https://doi.org/10.1016/j.jacc.2019.10.012}
-
-\bibitem{cghmidterm}
-Nguyen, T. T. (2026).
-Machine learning artificial intelligence to predict curable forms of hypertension:
-A clinical decision support system for primary aldosteronism.
-CGH midterm research report, 13 March 2026.
-
-\bibitem{lec-convex}
-Optimization for Data Science (2026).
-\textit{Convex Optimization Models}. Week~8, Class~1 lecture notes.
-
-\bibitem{lec-statlearn}
-Optimization for Data Science (2026).
-\textit{Statistical Learning Models}. Week~9, Class~1 lecture notes.
-
-\bibitem{lec-duality}
-Optimization for Data Science (2026).
-\textit{Introduction to Duality}. Week~9, Class~2 lecture notes.
-
-\bibitem{lec-firstorder}
-Optimization for Data Science (2026).
-\textit{First-Order Optimality Conditions and Sensitivity Analysis}.
-Week~10, Class~1 lecture notes.
-
-\bibitem{lec-strongconvex}
-Optimization for Data Science (2026).
-\textit{Strong Convexity and Descent Methods}. Week~10, Class~2 lecture notes.
-
-\bibitem{lec-sgm}
-Optimization for Data Science (2026).
-\textit{The Stochastic Gradient Method}. Lecture notes.
-
-\end{thebibliography}
-
-\appendix
-
 \section{Reader's One-Page Summary}
 \label{app:cheatsheet}
 
 Figure~\ref{fig:cheatsheet} condenses the entire report into a single page:
 the geometry of a support vector machine (panel A), the logical arc of the
 analysis (panel B), the role of slack and the penalty $C$ (panel C), the
-effect of the RBF width $\gamma$ (panel D), and a symbol key with the final
+effect of the RBF inverse-bandwidth parameter $\gamma$ (panel D), and a symbol key with the final
 verdict (panel E). The decision boundary, margin, and circled support vectors
 in panel A are taken from an actual fitted linear SVM, and the two surfaces in
 panel D are genuine RBF decision boundaries at small and large $\gamma$.
@@ -1724,51 +1830,54 @@ panel D are genuine RBF decision boundaries at small and large $\gamma$.
     Panel A: anatomy of the linear classifier (score, margin, support
     vectors). Panel B: the strict $\to$ prove-impossible $\to$ relax $\to$
     compare logic. Panel C: the soft-margin slack variable and the penalty
-    $C$. Panel D: smooth versus memorising RBF surfaces as $\gamma$ grows.
+    $C$. Panel D: smooth versus memorizing RBF surfaces as $\gamma$ grows.
     Panel E: symbol key and verdict.}
     \label{fig:cheatsheet}
 \end{figure}
 
+\clearpage
 \section{Independent Reproduction and Verification}
 \label{app:verification}
 
-The complete numerical pipeline was re-executed from the supplied scripts and
-dataset in a clean environment (Python~3.11 with scikit-learn~1.9,
-SciPy~1.17, NumPy~2.4, pandas~3.0), and every regenerated artifact was
-compared against the values reported in the main text.
+The supplied numerical artifacts were audited against the project scripts and
+dataset in the local reference environment (Python~3.14, scikit-learn~1.8,
+SciPy~1.17, NumPy~2.4, pandas~3.0, Matplotlib~3.10, and openpyxl~3.1).
+The corresponding package versions are recorded in
+\path{requirements.txt}. Generated full-precision CSV values were compared
+against the values reported in the main text.
 
 \begin{itemize}
-    \item \textbf{Result tables.} All 30 generated CSV files were reproduced.
-    Twenty-nine are bit-for-bit identical; the single exception is the RBF
+    \item \textbf{Result tables.} The generated CSV artifacts reproduce the
+    reported numerical results. The only material run-to-run comparison noted
+    in the original model pipeline is the RBF
     dual-equality KKT residual, which differed only in its floating-point
-    value ($2.78\times10^{-17}$ versus $5.20\times10^{-18}$)-both are
+    value ($2.78\times10^{-17}$ versus $5.20\times10^{-18}$)---both are
     numerical zero and reflect summation order in the linear-algebra backend,
     with no effect on any reported quantity.
-    \item \textbf{LaTeX tables.} All nine generated table fragments are
-    byte-identical to the shipped versions.
+    \item \textbf{LaTeX tables.} The displayed table fragments are generated
+    directly from their corresponding full-precision CSV artifacts.
     \item \textbf{Headline metrics.} The linear soft-margin nested
     out-of-fold AUROC ($0.9474$), accuracy ($0.8596$), sensitivity
     ($0.8571$), and specificity ($0.8621$), and the RBF selection
     $(C,\gamma)=(0.01,10^{-3})$ with mean outer AUROC $0.9420$, all reproduce
-    to six decimal places. An independent from-scratch reimplementation of the
-    linear pipeline gave the same four metrics, confirming the result does not
-    depend on the project's own code path.
-    \item \textbf{Optimisation quality.} The primal--dual gaps of both fitted
+    to six decimal places within the supplied project pipeline.
+    \item \textbf{Optimization quality.} The primal--dual gaps of both fitted
     models are at machine precision ($4.9\times10^{-10}$ for the linear model
     and $2.2\times10^{-11}$ for the RBF model), confirming both quadratic
     programs are solved to optimality.
     \item \textbf{Leakage safety.} The log transformation, median imputation,
-    and standardisation are all contained inside the cross-validation
+    and standardization are all contained inside the cross-validation
     pipeline, so every preprocessing parameter is estimated from the training
     fold alone. The nested cross-validation is therefore free of information
     leakage.
 \end{itemize}
 
-The primary conclusion is confirmed: the RBF kernel did not improve on the
-linear soft-margin model, and with only 114 observations the small difference
-in mean outer-fold AUROC is not statistically significant (paired $t=1.63$,
-$p=0.18$ across the five folds). Preferring the simpler linear model is the
-supported conclusion.
+The primary conclusion is confirmed: the RBF kernel did not provide a stable
+improvement over the linear soft-margin model. With only 114 observations and
+substantial overlap among repeated splits, the fold and seed repetitions are
+treated as validation and stability diagnostics rather than independent
+replicates for formal significance testing. Preferring the simpler linear
+model is therefore the supported, appropriately cautious conclusion.
 
 \section{Source Code}
 \label{app:code}
@@ -1779,7 +1888,7 @@ available in the project repository:
 \url{https://github.com/nttssv/convex_optimization_svm_example}
 \end{center}
 
-The repository is organised as follows. Each script is reached by appending
+The repository is organized as follows. Each script is reached by appending
 its path to
 \path{https://github.com/nttssv/convex_optimization_svm_example/blob/main/}.
 
@@ -1791,18 +1900,32 @@ its path to
     cross-validation, selection of $C$ by AUROC, the final soft-margin fit with
     its primal--dual audit, and the tables and figures of
     Section~\ref{sec:soft-margin}.
+    \item \path{scripts/compare_primal_optimizers.py} --- controlled comparison
+    of stochastic subgradient, Heavy Ball momentum-subgradient, and
+    Nesterov-style momentum-subgradient methods in Section~\ref{sec:sgm}.
     \item \path{scripts/kernel_rbf_svm.py} --- joint $C,\gamma$ tuning inside
     nested cross-validation, the train--validation gap diagnostic, and the
     RBF-versus-linear comparison of Section~\ref{sec:kernel-rbf}.
     \item \path{scripts/build_full_data_infeasibility_certificate.py} --- the
     Farkas infeasibility certificate of Section~\ref{sec:full-certificate}.
+    \item \path{scripts/build_descriptive_tables.py} --- the descriptive
+    statistics and class-contrast tables of Section~\ref{sec:descriptive}.
+    \item \path{scripts/build_svm_primal_dual_toy_example.py} --- the
+    five-point primal--dual teaching example in Appendix~\ref{sec:toy-primal-dual}.
+    \item \path{scripts/build_hard_margin_teaching_workbook.py} --- the
+    ten-observation teaching subsystem and companion spreadsheet.
+    \item \path{scripts/build_seed_robustness.py} --- the repeated-seed
+    stability diagnostic comparing the linear and RBF models.
+    \item \path{scripts/make_synthetic_dataset.py} --- deterministic
+    generation of the synthetic input cohort from seed $20260710$.
     \item \path{data/cgh_pa_dataset.csv} --- the synthetic 114-patient cohort;
     \path{output/} --- the regenerated figures, CSV audits, and \LaTeX{} table
     fragments.
 \end{itemize}
 
-Running the three model scripts from the repository root, with
-\path{scripts/} on \texttt{PYTHONPATH}, reproduces every table and figure in
-this report.
+The exact execution order and PDF-build command are documented in
+\path{README.md}. Running those commands from the repository root, with
+\path{scripts/} on \texttt{PYTHONPATH}, regenerates the report's tables,
+figures, and numerical audit files.
 
 \end{document}

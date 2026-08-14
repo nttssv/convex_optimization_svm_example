@@ -1,5 +1,12 @@
-output/csv/
+output/csv/*
+!output/csv/primal_optimizer_comparison.csv
 output/xlsx/
+output/tables/*
+!output/tables/primal_optimizer_comparison_table.tex
+!output/tables/primal_optimizer_slide_table.tex
+output/figures/*.csv
+output/figures/*.txt
+tmp/
 *.aux
 *.log
 *.out
@@ -7,5 +14,8 @@ output/xlsx/
 *.fls
 *.fdb_latexmk
 *.synctex.gz
+*.nav
+*.snm
 __pycache__/
 *.pyc
+._*

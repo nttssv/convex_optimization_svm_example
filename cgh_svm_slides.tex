@@ -97,7 +97,7 @@
       certificate turns that into a proof ($0\ge 1$); \emph{(2c)} the two convex hulls overlap.
     \item[\textcolor{UPAblue}{\textbf{3}}] \textbf{Fit a soft-margin model.}
       Slack variables allow margin violations, controlled by the penalty $C$.
-      We tune $C$, inspect the fitted boundary, and also solve the primal with SGD.
+      We tune $C$, inspect the fitted boundary, and also solve the primal with stochastic subgradients.
     \item[\textcolor{BPAorange}{\textbf{4}}] \textbf{Compare with an RBF kernel.}
       The kernel allows a nonlinear boundary. Nested cross-validation tests whether that
       added flexibility improves performance.
@@ -148,7 +148,7 @@
   \begin{columns}[T]
     \begin{column}{0.58\textwidth}
       \scriptsize
-      \setlength{\tabcolsep}{3pt}
+      \setlength{\tabcolsep}{2pt}
       \begin{tabular}{lccrrr}
         \toprule
         Feature & UPA & BPA & Cohen's $d$ & Welch $t$ & $p$ \\
@@ -242,6 +242,7 @@
 
 % ---------- 2a solver ----------
 \begin{frame}{The solver finds no feasible hard margin}
+  \small
   \begin{columns}[T]
     \begin{column}{0.52\textwidth}
       Feasibility of the hard-margin constraints is itself a \textbf{linear program}: does any $(w,b)$ satisfy
@@ -351,17 +352,18 @@
 
 % ---------- 3a C grid search ----------
 \begin{frame}{Cross-validation selects $C=0.01$}
+  \footnotesize
   \begin{columns}[T]
     \begin{column}{0.40\textwidth}
-      We evaluated $C$ from $10^{-2}$ to $10^{2}$ using \textbf{inner-fold validation} AUROC. The outer test fold was not used for tuning.
-      \vspace{0.5em}
+      For \textbf{each candidate $C$} and inner split:
       \begin{itemize}
-        \item Training AUROC stays flat near $0.96$ at every $C$.
-        \item Validation AUROC \emph{peaks at the smallest} $C=0.01$.
-        \item Validation performance declines as $C$ increases.
+        \item fit preprocessing on the training fold;
+        \item solve that fixed-$C$ SVM quadratic program to obtain $(w_C^*,b_C^*)$;
+        \item score the held-out validation fold.
       \end{itemize}
-      \vspace{0.4em}
-      The train--validation gap provides a simple check for overfitting.
+      We average validation AUROC over five folds and choose its maximum. The
+      untouched outer fold is not used for tuning. Validation AUROC peaks at
+      $C=0.01$ and declines as $C$ increases.
     \end{column}
     \begin{column}{0.60\textwidth}
       \centering
@@ -374,6 +376,7 @@
 
 % ---------- 3b Pareto ----------
 \begin{frame}{$C=0.01$ also has the smallest generalization gap}
+  \small
   \begin{columns}[T]
     \begin{column}{0.40\textwidth}
       Each value of $C$ is plotted by its train--validation gap and validation AUROC. Preferred settings lie near the \textbf{top-left}.
@@ -412,10 +415,10 @@
   \end{columns}
 \end{frame}
 
-% ---------- From constrained soft margin to SGD objective ----------
-\begin{frame}{From the constrained SVM to an SGD objective}
+% ---------- From constrained soft margin to stochastic subgradients ----------
+\begin{frame}{From the constrained SVM to a subgradient objective}
   \lecref{Statistical Learning Models (W9); The Stochastic Gradient Method (W10)}
-  \small
+  \footnotesize
   \begin{columns}[T]
     \begin{column}{0.49\textwidth}
       \textbf{1. Start with the constrained soft-margin problem}
@@ -444,36 +447,34 @@
         +\frac{\lambda}{2}\lVert w\rVert^2,
         \qquad \boxed{\lambda=\frac1{mC}}.
       \]
-      This is a finite sum, so SGD can sample one observation and use its subgradient at each step.
+      A stochastic method can therefore sample one observation and use its subgradient at each step.
     \end{column}
   \end{columns}
-  \take{The rescaling is not required by SGD itself; eliminating the constraints gives the convenient unconstrained finite-sum form used by the Pegasos update.}
+  \take{Because hinge loss is nondifferentiable at margin one, the Pegasos update is a stochastic subgradient step.}
 \end{frame}
 
-% ---------- SGM on the primal ----------
-\begin{frame}{A separate SGD run uses $\lambda=0.01$}
-  \lecref{The Stochastic Gradient Method; Strong Convexity \& Descent (W10)}
-  \small
-  SGD minimizes the normalized hinge-loss objective
-  \[
-    P(w)=\frac{1}{m}\sum_{i=1}^{m}\max(0,1-t_iw^\top x_i)
-    +\frac{\lambda}{2}\lVert w\rVert^2, \qquad \lambda=0.01.
-  \]
-  Here \textbf{$\lambda$ is the L2 regularization coefficient}; it also sets the step size
-  $\eta_k=1/(\lambda k)$. It is not the Farkas weight $\lambda_i$ and is not numerically
-  the same parameter as $C$. Under this normalization, equivalent settings satisfy
-  $\lambda=1/(mC)$; this experiment uses $\lambda=0.01$ as a separate SGD setting.
-  The update is $w_{k+1}=w_k-\eta_k g_k$, where $g_k=\lambda w_k$ outside the hinge and
-  $g_k=\lambda w_k-t_kx_k$ for a margin violation.
-  \vspace{-0.4em}
+% ---------- Stochastic primal optimizer comparison ----------
+\begin{frame}{After grid search, optimize only the selected $C=0.01$}
+  \lecref{The Stochastic Gradient Method; Momentum Methods (W11)}
+  \footnotesize
+  \textbf{This is not another $C$ search.} Every method solves the one primal
+  selected above: $C=0.01$, hence $\lambda=1/(114C)=0.8772$. They use the same
+  zero start and 50,000-sample sequence, with
+  $\eta_k=a/[\lambda(k+100)]$.
+  \vspace{0.1em}
   \begin{center}
-    \includegraphics[width=0.88\textwidth,height=0.37\textheight,keepaspectratio]{output/figures/sgm_convergence_slide.pdf}
+    \resizebox{0.70\textwidth}{!}{\input{output/tables/primal_optimizer_slide_table.tex}}
+
+    \vspace{0.1em}
+    \includegraphics[width=0.62\textwidth,height=0.22\textheight,keepaspectratio]{output/figures/primal_optimizer_comparison.pdf}
   \end{center}
+  \take{The hinge loss is nonsmooth, so smooth acceleration guarantees do not apply. Plain SSG is simplest and at least as fast in this run.}
 \end{frame}
 
 % ---------- RBF derivation ----------
 \begin{frame}{An RBF kernel allows a nonlinear boundary}
   \lecref{Introduction to Duality (W9); Statistical Learning Models (W9) --- kernels}
+  \small
   \textbf{1. Start from the soft-margin primal:}
   \[
     \min_{w,b,\xi}\ \tfrac12\lVert w\rVert^2 + C\sum_i \xi_i
@@ -503,7 +504,6 @@
   \begin{center}
     Decision score becomes \;$f(x)=\displaystyle\sum_i \alpha_i t_i\,K(x_i,x)+b$.
   \end{center}
-  \take{The RBF kernel changes the shape of the boundary without changing the convex dual optimization problem.}
 \end{frame}
 
 % ---------- RBF compare ----------
@@ -530,6 +530,7 @@
 
 % ---------- Pareto frontier ----------
 \begin{frame}{More flexible RBF settings overfit}
+  \small
   \begin{columns}[T]
     \begin{column}{0.40\textwidth}
       Each candidate is plotted by its train--validation gap and validation AUROC. Preferred models are near the \textbf{top-left}.
@@ -537,20 +538,21 @@
       \begin{itemize}
         \item \textcolor{UPAblue}{\textbf{Linear}} candidates remain close to the top-left.
         \item \textcolor{BPAorange}{\textbf{RBF}} candidates develop a large train--validation gap as $\gamma$ increases.
-        \item The Pareto-optimal RBF setting is again the smoothest one and is close to linear.
+        \item Four RBF settings share the Pareto frontier at $\gamma=0.00316$; their differences are numerically negligible.
       \end{itemize}
     \end{column}
     \begin{column}{0.60\textwidth}
       \centering
       \includegraphics[width=\textwidth]{output/figures/svm_grid_pareto_frontier.pdf}\\
-      {\footnotesize The star marks the Pareto-optimal model in each grid. The additional RBF settings increase the overfitting range without improving the best validation result.}
+      {\footnotesize Stars mark Pareto-optimal grid settings. The additional RBF settings widen the overfitting range without improving the final nested comparison.}
     \end{column}
   \end{columns}
-  \take{The nonlinear settings increase overfitting without improving the best validation performance.}
+  \take{The inner-grid frontier is a tuning diagnostic; the untouched outer folds decide whether the kernel helps.}
 \end{frame}
 
 % ---------- Step 4 RBF PC-space boundary ----------
 \begin{frame}{What the RBF boundary looks like}
+  \small
   \begin{columns}[T]
     \begin{column}{0.40\textwidth}
       \small
@@ -584,12 +586,11 @@
       mean outer-fold AUROC:
       \begin{itemize}
         \item Difference $= +0.0002$
-        \item 95\% CI $[-0.005,+0.006]$
-        \item Paired $t$-test: $p=0.93$
+        \item Descriptive 95\% interval $[-0.022,+0.017]$
         \item Linear matched or beat RBF in 12 of 20 runs
       \end{itemize}
       \vspace{0.4em}
-      \alert{The repeated runs show no meaningful difference in discrimination.}
+      \alert{The repeated runs reuse the same data: they assess split stability, not independent statistical significance.}
     \end{column}
   \end{columns}
   \take{Across repeated splits, the RBF model provides no consistent improvement over the linear model.}
@@ -606,7 +607,7 @@
           \item RBF kernel: mean outer-fold AUROC 0.94.
         \end{itemize}
         \vspace{0.3em}
-        \textbf{The RBF kernel does not improve validation performance.}
+        \textbf{The RBF kernel does not improve mean nested outer-fold performance.}
       \end{block}
       With similar discrimination, the linear model is easier to tune and interpret.
     \end{column}

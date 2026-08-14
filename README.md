@@ -17,9 +17,20 @@ reproducible artifacts.
 - `output/figures/`: report figures in PDF/PNG format.
 - `output/figures/svm_grid_pareto_frontier.*`: reproducible Pareto chart for
   validation AUROC versus the train--validation AUROC gap.
+- `output/csv/primal_optimizer_comparison.csv` and
+  `output/figures/primal_optimizer_comparison.*`: controlled stochastic
+  subgradient, Heavy Ball, and Nesterov-style comparison at the selected
+  $C=0.01$ for Section 6.7.
 - `output/xlsx/`: ten-observation teaching workbook.
 
 ## Reproduce the analyses
+
+The recorded reference environment uses Python 3.14.3. Install the pinned
+packages before running the analysis sequence:
+
+```bash
+python3 -m pip install -r requirements.txt
+```
 
 Run these commands from this `draft` directory, with `scripts/` on
 `PYTHONPATH` (the soft-margin and RBF scripts import the sibling module
@@ -28,12 +39,15 @@ not importable):
 
 ```bash
 export PYTHONPATH="$PWD/scripts"
+python3 scripts/build_descriptive_tables.py
 python3 scripts/linear_hard_margin_svm.py
 python3 scripts/build_full_data_infeasibility_certificate.py
 python3 scripts/build_svm_primal_dual_toy_example.py
 python3 scripts/build_hard_margin_teaching_workbook.py
 python3 scripts/linear_soft_margin_svm.py
+python3 scripts/compare_primal_optimizers.py
 python3 scripts/kernel_rbf_svm.py
+python3 scripts/build_seed_robustness.py
 ```
 
 The scripts read the dataset via paths relative to this `draft` directory,
