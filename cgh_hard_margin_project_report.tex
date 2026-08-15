@@ -145,7 +145,10 @@ target in the generator and is therefore omitted.}
 
 For reference, Table~\ref{tab:notation} collects the symbols used throughout
 the optimization sections so the appendix summary is not needed as a notation
-key.
+key. Displayed numbers are rounded to two decimal places throughout, as
+requested; every numerical check and audit uses the full-precision values
+stored in the companion \path{output/csv/} files, which store each quantity at
+full precision alongside a two-decimal display column.
 
 \begin{table}[htbp]
 \centering
@@ -220,7 +223,7 @@ are descriptive summaries of the synthetic cohort, not clinical inference.}
 These contrasts are descriptive. Computed on the full cohort, they are not
 used to select features: every model in this report is fitted on all ten
 predictors inside the cross-validation pipeline. More importantly, a large
-univariate effect does not imply linear separability - $d$ compares class
+univariate effect does not imply linear separability: $d$ compares class
 means, whereas the hard-margin constraint of Section~\ref{sec:hard-margin}
 requires \emph{every individual observation} to lie on the correct side of one
 hyperplane. Figure~\ref{fig:feature-distributions} shows that even PAC, the
@@ -233,8 +236,8 @@ strongest single predictor, leaves the two subtypes heavily overlapped.
     interquartile range with the median marked; whiskers extend to
     $1.5\times$IQR and points beyond are drawn individually. The four log transform features (PAC, PRA, 18-OHF, and 18-oxoF) use a logarithmic ordinate to make their right-skewed distributions
     legible. Every panel shows overlapping subtype distributions, which is why
-    no single feature - and, as Section~\ref{sec:hard-margin} shows, no
-    linear combination of all ten - can separate the classes perfectly.}
+    no single feature (and, as Section~\ref{sec:hard-margin} shows, no
+    linear combination of all ten) can separate the classes perfectly.}
     \label{fig:feature-distributions}
 \end{figure}
 
@@ -296,7 +299,7 @@ The derivatives of the primal objective describe only how
 $\lVert w\rVert_2^2/2$ changes; they do not by themselves enforce the margin
 constraints. Indeed, setting the objective gradient to zero would give
 $w=0$, which is generally infeasible. The Lagrangian is therefore introduced
-as an auxiliary function-not as a replacement for the primal objective-to
+as an auxiliary function, not as a replacement for the primal objective, to
 combine the objective with the constraints and express constrained
 optimality through the KKT conditions.
 
@@ -417,7 +420,7 @@ $1-t_i(w^\top x_i+b)\leq0$ is affine in $(w,b)$, so strong duality holds for
 the hard-margin SVM as soon as one separating hyperplane exists. Feasibility is therefore the single hinge of the entire hard-margin
 analysis. The certificate of Section~\ref{sec:full-certificate} shows the
 constraints are infeasible on this dataset, so $p^*=+\infty$ and there is no
-finite primal value for the dual to certify - which is why a dual solution
+finite primal value for the dual to certify, which is why a dual solution
 must never be read as a trained classifier before feasibility is checked.
 
 The soft-margin program of Section~\ref{sec:soft-margin} differs in exactly
@@ -515,10 +518,8 @@ $\lambda\in\mathbb{R}^{114}$ satisfying
 \end{equation}
 The auxiliary linear program for this certificate returned twelve nonzero
 weights, shown in Table~\ref{tab:farkas-certificate}; the other 102 weights
-are zero. Displayed weights use two decimal places as requested. Every check
-uses the unrounded values in the companion CSV file, which also contains a
-separate two-decimal display column; the displayed values alone should not be
-used to recompute the certificate.
+are zero. The displayed values alone should not be used to recompute the
+certificate; every check uses the unrounded values in the companion CSV file.
 
 \begin{table}[htbp]
 \centering
@@ -537,8 +538,7 @@ The full-precision numerical audit gives
 \lVert U^\top\lambda\rVert_\infty&<10^{-15}.
 \end{aligned}
 \end{equation}
-The displayed certificate weights are rounded, so these identities must be
-checked with the stored full-precision values. The final residual is reported
+The final residual is reported
 as a tolerance statement because its exact machine-zero mantissa can change
 with the numerical backend. Now suppose, for
 contradiction, that a hard-margin parameter $\theta$ satisfied
@@ -859,8 +859,6 @@ p^*
 &\approx0.63.
 \end{aligned}
 \end{equation}
-The displayed arithmetic uses rounded components; the audit and duality gap
-below use the stored full-precision coefficients and slacks.
 The dual calculation gives $d^*\approx0.63$, and the full-precision
 primal--dual gap is $4.85\times10^{-10}$. The weight-reconstruction residual
 is zero at stored precision. The dual equality residual is below $10^{-15}$ and
@@ -1329,6 +1327,7 @@ final linear-versus-RBF conclusion therefore continues to use the untouched
 nested outer folds in the next subsection.
 
 \subsection{Comparison with the Linear Soft-Margin Model}
+\label{sec:kernel-comparison}
 
 For the prespecified seed-zero split, the comparison uses mean outer-fold
 AUROC because each outer fold is untouched by its corresponding parameter search. The linear model achieves
@@ -1480,9 +1479,7 @@ $(C,\gamma)$ combinations increases the opportunity to select noise, and the
 preferred pair varied substantially between outer folds. The nested analysis
 found no performance gain, while the high-$\gamma$ region produced perfect
 training AUROC and near-chance validation. Model complexity should therefore
-not be justified by training fit. On this dataset, the linear model offers
-similar validation with fewer tuning degrees of freedom and a directly
-inspectable standardized-space score.
+not be justified by training fit.
 
 \subsection{Robustness of the Linear--RBF Comparison}
 \label{sec:stat-comparison}
@@ -1495,12 +1492,10 @@ that the linear model has intrinsically superior discrimination.
 \paragraph{Pooled out-of-fold discrimination.}
 On the pooled out-of-fold decision scores, the linear soft-margin AUROC
 ($0.947$) exceeds the RBF AUROC ($0.851$). This number is not a valid primary
-head-to-head estimate, however, because different outer folds selected
-different $(C,\gamma)$ pairs and their raw decision scores are not calibrated
-to a common scale. Pooling them can change ranks across folds even though each
-fold-specific ROC curve is unchanged. For that reason, the pooled gap and its
-naive DeLong or patient-bootstrap significance tests are not used to choose the
-model. No formal inference is attached to this scale-sensitive pooled
+head-to-head estimate for the score-scale reason established in
+Section~\ref{sec:kernel-comparison}. The pooled gap and its naive DeLong or
+patient-bootstrap significance tests are therefore not used to choose the
+model, and no formal inference is attached to this scale-sensitive pooled
 calculation.
 
 \paragraph{Mean outer-fold discrimination and seed robustness.}
@@ -1679,10 +1674,8 @@ views transparent. It uses the
 five observations in Table~\ref{tab:toy-data}. Each point is embedded in the
 same ten-dimensional notation as the main analysis by setting
 $x_3=\cdots=x_{10}=0$. The symbol $y_i$ used in this example has exactly the
-same role as $t_i$ elsewhere in the report. Numerical values in the table,
-solution, margin evaluation, multiplier calculation, dual check, and figure
-are displayed to two decimal places; exact integers are retained where they
-make the symbolic constraint algebra easier to read.
+same role as $t_i$ elsewhere in the report. Exact integers are retained where
+they make the symbolic constraint algebra easier to read.
 
 \begin{table}[htbp]
 \centering
@@ -1936,9 +1929,6 @@ w_{\mathrm{teach}}^{\top}
 b_{\mathrm{teach}}\approx{}&0.29.
 \end{aligned}
 \end{equation}
-These coefficients are displayed to two decimal places; all constraint and
-objective checks use the full-precision values stored in the generated CSV
-files.
 
 \paragraph{Numerical evaluation of the objective.}
 The ten observations contribute ten margin constraints; they do not create ten additive loss terms. Thus the fitted teaching subsystem has one global primal objective. Substituting the fitted weights gives
@@ -1955,8 +1945,7 @@ The ten observations contribute ten margin constraints; they do not create ten a
 &\approx\boxed{0.94}.
 \end{aligned}
 \end{equation}
-The displayed arithmetic is rounded to two decimal places, while the reported
-feasibility status uses the full-precision solver coefficients. The intercept
+The intercept
 $b_{\mathrm{teach}}\approx0.29$ is not squared because the hard-margin primal
 does not penalize the intercept. The ten rowwise quantities governed by this
 solution are the constraints $u_i^{\top}\theta\geq1$ in
