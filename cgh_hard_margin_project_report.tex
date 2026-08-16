@@ -145,10 +145,11 @@ target in the generator and is therefore omitted.}
 
 For reference, Table~\ref{tab:notation} collects the symbols used throughout
 the optimization sections so the appendix summary is not needed as a notation
-key. Displayed numbers are rounded to two decimal places throughout, as
-requested; every numerical check and audit uses the full-precision values
-stored in the companion \path{output/csv/} files, which store each quantity at
-full precision alongside a two-decimal display column.
+key. Tables generally use two-decimal displays, switching to scientific
+notation or additional digits where numerical tolerances and repeated-seed
+comparisons require them. Every numerical check and audit uses the stored
+machine-precision values in the companion \path{output/csv/} files; several
+artifacts also provide separate presentation-ready display columns.
 
 \begin{table}[htbp]
 \centering
